@@ -1,0 +1,554 @@
+{
+  "info": {
+    "_postman_id": "dedc7bff-1c17-4d15-97a2-28f86db2112c",
+    "name": "API – Whitelist, Registro OTP y Login JWT (v1)",
+    "description": "Colección Postman para testear Whitelist (admin), Registro por OTP y Auth JWT.\nIncluye variables y scripts para manejar tokens.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/api"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "admin_email",
+      "value": "admin@sanjines.com"
+    },
+    {
+      "key": "admin_password",
+      "value": "AdminPassw0rd!"
+    },
+    {
+      "key": "email_demo",
+      "value": "ana@sanjines.com"
+    },
+    {
+      "key": "password_demo",
+      "value": "MiPassw0rd!"
+    },
+    {
+      "key": "whitelist_id",
+      "value": "1"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [],
+  "item": [
+    {
+      "name": "Auth (JWT)",
+      "item": [
+        {
+          "name": "Login (email+password → access/refresh)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/jwt/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "jwt",
+                "login"
+              ]
+            },
+            "description": "Obtiene tokens JWT. Guarda `access_token` y `refresh_token` en variables de colección.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.access) pm.collectionVariables.set(\"access_token\", data.access);",
+                  "  if (data.refresh) pm.collectionVariables.set(\"refresh_token\", data.refresh);",
+                  "  if (data.user && data.user.email) pm.collectionVariables.set(\"user_email\", data.user.email);",
+                  "  pm.test(\"Login OK\", function () {",
+                  "    pm.expect(data).to.have.property(\"access\");",
+                  "    pm.expect(data).to.have.property(\"refresh\");",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Login fallo\", function () { pm.expect.fail(\"Código \" + pm.response.code); });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/jwt/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "jwt",
+                "refresh"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.access) pm.collectionVariables.set(\"access_token\", data.access);",
+                  "  pm.test(\"Refresh OK\", function () {",
+                  "    pm.expect(data).to.have.property(\"access\");",
+                  "  });",
+                  "} else {",
+                  "  pm.test(\"Refresh fallo\", function () { pm.expect.fail(\"Código \" + pm.response.code); });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (perfil)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Requiere Authorization: Bearer {{access_token}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Whitelist (Admin)",
+      "item": [
+        {
+          "name": "Listar whitelist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/?role=admin&show_inactive=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "admin"
+                },
+                {
+                  "key": "show_inactive",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Lista todas las entradas (incluye inactivas si `show_inactive=1`). Requiere admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Crear whitelist entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist"
+              ]
+            },
+            "description": "Crea una entrada de whitelist. Requiere admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Ana\",\n  \"last_name\": \"Sanjin\\u00e9s\",\n  \"email\": \"{{email_demo}}\",\n  \"role\": \"admin\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener entry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/{{whitelist_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist",
+                "{{whitelist_id}}"
+              ]
+            },
+            "description": "Obtiene una entrada por ID. Requiere admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar entry (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/{{whitelist_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist",
+                "{{whitelist_id}}"
+              ]
+            },
+            "description": "Actualiza parcialmente una entrada. Requiere admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"user\",\n  \"email\": \"{{email_demo}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Desactivar entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/{{whitelist_id}}/deactivate/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist",
+                "{{whitelist_id}}",
+                "deactivate"
+              ]
+            },
+            "description": "Soft delete. Requiere admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivar entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/{{whitelist_id}}/reactivate/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist",
+                "{{whitelist_id}}",
+                "reactivate"
+              ]
+            },
+            "description": "Reactivar entrada. Requiere admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Check whitelist (público)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/whitelist/check/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "whitelist",
+                "check"
+              ]
+            },
+            "description": "Verifica si un email está permitido. Público (sin auth).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_demo}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Registro (OTP)",
+      "item": [
+        {
+          "name": "Request OTP (registro)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register/request-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "request-otp"
+              ]
+            },
+            "description": "Genera y envía OTP al correo si el email está en whitelist activa.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Ana\",\n  \"last_name\": \"Sanjin\\u00e9s\",\n  \"email\": \"{{email_demo}}\",\n  \"password\": \"{{password_demo}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resend OTP (cooldown)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register/resend-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "resend-otp"
+              ]
+            },
+            "description": "Reenvía OTP respetando cooldown y throttling.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_demo}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm OTP → crear usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register/confirm/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "confirm"
+              ]
+            },
+            "description": "Confirma OTP y crea usuario con rol asignado por whitelist.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_demo}}\",\n  \"otp_code\": \"123456\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Status (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register/status/?email={{email_demo}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{email_demo}}"
+                }
+              ]
+            },
+            "description": "Estado del registro (consulta por query param).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Status (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register/status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                "status"
+              ]
+            },
+            "description": "Estado del registro (POST).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_demo}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

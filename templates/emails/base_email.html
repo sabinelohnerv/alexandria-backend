@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{{ subject }}</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f7f7f9;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f7f9;">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="background:{{ brand_color }};padding:20px 24px;">
+              <table width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="left" style="color:#ffffff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;font-size:18px;font-weight:600;">
+                    {% if brand_logo_url %}
+                      <img src="{{ brand_logo_url }}" alt="{{ brand_name }}" height="32" style="vertical-align:middle;border:none;outline:none;margin-right:10px;">
+                    {% endif %}
+                    {{ brand_name }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:28px 24px 8px 24px;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:8px 24px 28px 24px;color:#6c757d;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;font-size:12px;line-height:1.5;">
+              Si no solicitaste este código, puedes ignorar este correo.
+              <br>
+              © {{ brand_name }} — Enviado automáticamente, por favor no responder.
+            </td>
+          </tr>
+        </table>
+
+        <div style="padding:16px;color:#9aa0a6;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;font-size:12px;">
+          ¿Necesitas ayuda? Contacto: {{ support_email|default:default_from_email }}
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

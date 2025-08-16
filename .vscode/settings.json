@@ -1,0 +1,15 @@
+{
+    // Ruta del intérprete de Python a usar
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    // En macOS/Linux sería:
+    // "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    // Para que Pylance detecte paquetes de este venv
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    // Lenguaje: que Pylance use el entorno correcto
+    "python.analysis.venvPath": "${workspaceFolder}",
+    "python.analysis.venv": ".venv",
+    // Activar entorno al abrir terminal en VS Code
+    "python.terminal.activateEnvironment": true
+}

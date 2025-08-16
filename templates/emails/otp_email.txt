@@ -1,0 +1,9 @@
+{{ brand_name }} — Verificación de cuenta
+
+Hola {{ first_name }},
+Tu código de verificación es: {{ otp }}
+Expira en {{ ttl_minutes }} minutos.
+
+{% if frontend_url %}Puedes continuar aquí: {{ frontend_url }}{% endif %}
+
+Si no solicitaste este código, ignora este mensaje.
