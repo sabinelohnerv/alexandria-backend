@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "accounts_signup",
     "accounts_auth",
     "drf_spectacular_sidecar", 
+    "accounts_password",
 ]
 
 MIDDLEWARE = [
@@ -99,6 +100,13 @@ REST_FRAMEWORK = {
 
         "login_ip": "10/minute",
         "login_email": "5/minute",
+
+        "pwd_reset_ip": "5/minute",
+        "pwd_reset_email": "3/hour",
+        "pwd_resend_ip": "3/minute",
+        "pwd_resend_email": "2/hour",
+        "pwd_status_ip": "30/minute",
+        "pwd_status_email": "10/minute",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
@@ -130,7 +138,13 @@ SIMPLE_JWT = {
 }
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@alexandria.com")
+EMAIL_HOST = env("EMAIL_HOST", default=None)
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default=None)
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default=None)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.com")
+SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
 
 BRAND_NAME = env("BRAND_NAME", default="Sanjinés & Asociados")
 BRAND_PRIMARY_COLOR = env("BRAND_PRIMARY_COLOR", default="#023f66")

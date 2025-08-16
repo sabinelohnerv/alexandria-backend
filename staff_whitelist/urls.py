@@ -8,4 +8,7 @@ router.register(r"whitelist", StaffWhitelistViewSet, basename="staff-whitelist")
 urlpatterns = [
     path("", include(router.urls)),
     path("whitelist/check/", check_whitelist, name="check-whitelist"),
+
+    path("", include(router.urls)),
+    path("whitelist/check", check_whitelist, name="check-whitelist"),
 ]

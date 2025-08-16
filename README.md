@@ -1,6 +1,6 @@
 # Django + Postgres/Redis (Docker) + Whitelist + OTP por Email + JWT + Swagger
 
-Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redis** en **Docker**, gestión de **whitelist** (con rol `admin`/`user`), **registro con OTP por email (no TOTP)**, **login JWT** y **documentación Swagger/Redoc**.
+Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redis** en **Docker**, gestión de **whitelist** (con rol `admin`/`user`), **registro con OTP por email**, **login JWT**, **recuperación de contraseña con OTP por email**.
 
 ## 🚀 Características
 - **DBs en Docker**: `postgres:16-alpine`, `redis:7-alpine` (app Django corre local).
@@ -9,7 +9,6 @@ Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redi
 - **Antiflood & Throttling**: cooldown en reenvío OTP + rate limit por IP/email.
 - **Emails bonitos**: plantillas HTML + texto con branding (logo/color/CTA).
 - **Auth JWT**: login, refresh, endpoint `/me`, `role` in-claim.
-- **Swagger/Redoc**: esquema OpenAPI servido y exportable.
 
 ## 📦 Requisitos
 - Python **3.10+**
@@ -94,8 +93,9 @@ FRONTEND_URL=http://localhost:3000
 ├─ staff_whitelist/        # whitelist (modelo/servicio/serializers/views)
 ├─ accounts_signup/        # registro OTP (modelo/servicio/serializers/views)
 ├─ accounts_auth/          # login JWT (serializers/views)
+├─ accounts_password/      # cambio de contraseña (modelo/servicio/serializers/views)
 ├─ templates/
-│  └─ emails/              # base_email.html, otp_email.html, otp_email.txt
+│  └─ emails/              # base_email.html
 ├─ docker-compose.yml
 ├─ requirements.txt
 ├─ .env.example
@@ -104,12 +104,10 @@ FRONTEND_URL=http://localhost:3000
 ```
 
 ## 🧪 Postman
-Se incluye una colección de Postman para probar todos los endpoints (Whitelist, Registro, Auth).Importa el archivo **`postman_collection_whitelist_otp_jwt_v1.json`** en Postman (ajusta `base_url`, `admin_email`, etc.).
+Se incluye colecciones de Postman para probar todos los endpoints (Whitelist, Registro, Auth).Importa en Postman (ajusta `base_url`, `admin_email`, etc.) y prueba.
 
 ## 📨 Emails con plantillas
 - HTML + texto (multipart) con `EmailMultiAlternatives`.
-- Branding configurable por `.env` (`BRAND_*`, `FRONTEND_URL`).
-- Vista de **preview** (opcional en DEBUG) para iterar diseño.
 
 ## ⛑️ Troubleshooting
 - **`environ could not be resolved`** → activa el *venv* en VS Code y `pip install django-environ`.  Selecciona el intérprete: *Python: Select Interpreter* → `.venv`.
@@ -118,7 +116,7 @@ Se incluye una colección de Postman para probar todos los endpoints (Whitelist,
 - **Email no llega** (en dev de consola solo imprime) → cambia a SMTP real o revisa logs.
 
 ## 📜 Licencia
-MIT
+MIT License
 
 ---
 
