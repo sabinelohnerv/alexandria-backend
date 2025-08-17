@@ -1,12 +1,15 @@
-from rest_framework import viewsets, status, mixins
+from rest_framework import viewsets, status, mixins, filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.response import Response
-from rest_framework import filters
+
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import StaffWhitelist
 from .serializers import StaffWhitelistSerializer
 from .services import StaffWhitelistService
+from .filters import StaffWhitelistFilter
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -16,11 +19,13 @@ def check_whitelist(request):
     return Response({"allowed": exists})
 
 
-class StaffWhitelistViewSet(viewsets.GenericViewSet,
-                            mixins.ListModelMixin,
-                            mixins.RetrieveModelMixin,
-                            mixins.CreateModelMixin,
-                            mixins.UpdateModelMixin):
+class StaffWhitelistViewSet(
+    viewsets.GenericViewSet,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+):
     """
     CRUD de entries de whitelist. Solo admins.
     DELETE lógico con la acción custom 'deactivate'.
@@ -29,20 +34,41 @@ class StaffWhitelistViewSet(viewsets.GenericViewSet,
     serializer_class = StaffWhitelistSerializer
     permission_classes = [IsAdminUser]
 
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = StaffWhitelistFilter
     search_fields = ["first_name", "last_name", "email"]
     ordering_fields = ["first_name", "last_name", "email", "created_at", "role"]
     ordering = ["-created_at"]
 
     def get_queryset(self):
         qs = super().get_queryset()
+
+        # ---- Compat: show_inactive=1|true para incluir inactivos además de activos ----
         show_inactive = self.request.query_params.get("show_inactive")
-        if show_inactive not in ("1", "true", "True"):
-            qs = qs.filter(is_active=True)
-        role = self.request.query_params.get("role")
-        if role in [c for c, _ in StaffWhitelist.Role.choices]:
-            qs = qs.filter(role=role)
+        # ---- Nuevo: status=active|inactive|all (más explícito) ----
+        status_param = (self.request.query_params.get("status") or "").lower()
+        has_is_active_param = "is_active" in self.request.query_params  # django-filter lo manejará
+
+        if has_is_active_param:
+            pass  
+        elif status_param in ("active", "inactive", "all"):
+            if status_param == "active":
+                qs = qs.filter(is_active=True)
+            elif status_param == "inactive":
+                qs = qs.filter(is_active=False)
+            else: 
+                pass  
+        elif show_inactive in ("1", "true", "True"):
+            pass  
+        else:
+            qs = qs.filter(is_active=True) 
+
         return qs
+    
+    def get_object(self):
+        if getattr(self, "action", None) == "reactivate":
+            return StaffWhitelist.objects.get(pk=self.kwargs["pk"])
+        return super().get_object()
 
     def perform_create(self, serializer):
         data = serializer.validated_data

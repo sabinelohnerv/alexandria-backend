@@ -1,6 +1,57 @@
 from typing import Optional
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone
+
 from .models import StaffWhitelist
+
+
+User = get_user_model()
+
+def _revoke_user_refresh_tokens_if_possible(user):
+    """
+    Blacklistea todos los refresh tokens del usuario si está disponible
+    rest_framework_simplejwt.token_blacklist. Falla en silencio si no está.
+    """
+    if not getattr(settings, "WHITELIST_REVOKE_REFRESH_ON_DEACTIVATE", True):
+        return
+    try:
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+    except Exception:
+        return  
+    try:
+        for tok in OutstandingToken.objects.filter(user=user):
+            try:
+                BlacklistedToken.objects.get_or_create(token=tok)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _set_users_active_by_email(email: str, *, active: bool) -> int:
+    """
+    Ajusta is_active de todos los usuarios cuyo email coincida (case-insensitive).
+    Por defecto, no toca superusuarios salvo que WHITELIST_DISABLE_SUPERUSERS=True.
+    Retorna cantidad de filas actualizadas.
+    """
+    qs = User.objects.filter(email__iexact=email)
+    if not getattr(settings, "WHITELIST_DISABLE_SUPERUSERS", False):
+        qs = qs.filter(is_superuser=False)
+
+    users = list(qs) 
+    if not users:
+        return 0
+
+    updated = qs.update(is_active=active)
+
+    if not active:
+        for u in users:
+            _revoke_user_refresh_tokens_if_possible(u)
+
+    return updated
 
 class StaffWhitelistService:
     @staticmethod
@@ -40,13 +91,30 @@ class StaffWhitelistService:
     @staticmethod
     @transaction.atomic
     def deactivate_entry(*, entry: StaffWhitelist) -> StaffWhitelist:
+        """
+        Soft delete: marca el whitelist como inactivo y desactiva usuarios con ese email.
+        Opcionalmente revoca refresh tokens (SimpleJWT token_blacklist).
+        """
+        if not entry.is_active:
+            return entry
         entry.is_active = False
+        entry.updated_at = timezone.now()
         entry.save(update_fields=["is_active", "updated_at"])
+
+        _set_users_active_by_email(entry.email, active=False)
         return entry
 
     @staticmethod
     @transaction.atomic
     def reactivate_entry(*, entry: StaffWhitelist) -> StaffWhitelist:
+        """
+        Reactiva el whitelist y re-activa usuarios con ese email (si existen).
+        """
+        if entry.is_active:
+            return entry
         entry.is_active = True
+        entry.updated_at = timezone.now()
         entry.save(update_fields=["is_active", "updated_at"])
+
+        _set_users_active_by_email(entry.email, active=True)
         return entry
