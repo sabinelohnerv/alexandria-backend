@@ -1,13 +1,12 @@
 import random
 from datetime import timedelta
-from typing import Tuple
+from typing import Tuple, Dict
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
-from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
-from typing import Dict
 
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
@@ -20,26 +19,32 @@ User = get_user_model()
 OTP_LENGTH = 6
 OTP_TTL_MINUTES = 10
 MAX_OTP_ATTEMPTS = 5
-
 RESEND_COOLDOWN_SECONDS = 60
+
 
 def _generate_otp(length: int = OTP_LENGTH) -> str:
     return f"{random.randint(0, 10**length - 1):0{length}d}"
 
-def _resolve_role_from_whitelist(email: str) -> Tuple[bool, str]:
+
+def _resolve_from_whitelist(email: str) -> Tuple[bool, str, str, str]:
     """
-    Retorna (permitido, role). Debe estar activo en whitelist.
+    Retorna (allowed, role, first_name, last_name) tomando la entrada ACTIVA de whitelist.
+    Si no existe, allowed=False y role='user' por defecto (nombres vacíos).
     """
-    entry = StaffWhitelist.objects.filter(email=email.strip().lower(), is_active=True).first()
+    entry = StaffWhitelist.objects.filter(
+        email=email.strip().lower(),
+        is_active=True
+    ).first()
     if not entry:
-        return False, "user"
-    return True, entry.role
+        return False, "user", "", ""
+    return True, entry.role, (entry.first_name or "").strip(), (entry.last_name or "").strip()
+
 
 def _send_otp_email(email: str, otp: str, first_name: str):
     subject = f"{getattr(settings, 'BRAND_NAME', 'Tu cuenta')}: tu código de verificación"
     context = {
         "subject": subject,
-        "first_name": first_name,
+        "first_name": first_name or email.split("@")[0],
         "otp": otp,
         "ttl_minutes": OTP_TTL_MINUTES,
         "brand_name": getattr(settings, "BRAND_NAME", "Tu Marca"),
@@ -62,11 +67,15 @@ def _send_otp_email(email: str, otp: str, first_name: str):
     msg.attach_alternative(html_body, "text/html")
     msg.send(fail_silently=False)
 
+
 @transaction.atomic
-def request_registration_otp(*, first_name: str, last_name: str, email: str, password: str) -> None:
+def request_registration_otp(*, email: str, password: str) -> None:
+    """
+    Ya no recibe nombres: se obtienen desde la whitelist activa.
+    """
     email = email.strip().lower()
 
-    allowed, role = _resolve_role_from_whitelist(email)
+    allowed, role, wl_first, wl_last = _resolve_from_whitelist(email)
     if not allowed:
         raise PermissionError("El correo no está autorizado.")
 
@@ -75,11 +84,12 @@ def request_registration_otp(*, first_name: str, last_name: str, email: str, pas
     expires = now + timedelta(minutes=OTP_TTL_MINUTES)
     password_hash = make_password(password)
 
-    pending, _created = PendingRegistration.objects.update_or_create(
+    PendingRegistration.objects.update_or_create(
         email=email,
         defaults={
-            "first_name": first_name.strip(),
-            "last_name": last_name.strip(),
+            # nombres provenientes de whitelist
+            "first_name": wl_first,
+            "last_name": wl_last,
             "password_hash": password_hash,
             "otp_code": otp,
             "otp_sent_at": now,
@@ -90,10 +100,11 @@ def request_registration_otp(*, first_name: str, last_name: str, email: str, pas
         },
     )
 
-    _send_otp_email(email=email, otp=otp, first_name=first_name)
+    _send_otp_email(email=email, otp=otp, first_name=wl_first)
+
 
 @transaction.atomic
-def confirm_registration_with_otp(*, email: str, otp_code: str) -> User:
+def confirm_registration_with_otp(*, email: str, otp_code: str) -> User: # type: ignore
     email = email.strip().lower()
     otp_code = otp_code.strip()
 
@@ -113,31 +124,31 @@ def confirm_registration_with_otp(*, email: str, otp_code: str) -> User:
         pending.save(update_fields=["attempts", "updated_at"])
         raise ValueError("Código inválido.")
 
-    allowed, role = _resolve_role_from_whitelist(email)
+    allowed, role, wl_first, wl_last = _resolve_from_whitelist(email)
     if not allowed:
         raise PermissionError("El correo dejó de estar autorizado (whitelist).")
 
     user = User.objects.create(
-        username=email,  
+        username=email,          
         email=email,
-        first_name=pending.first_name,
-        last_name=pending.last_name,
-        password=pending.password_hash,
+        first_name=wl_first or pending.first_name,   
+        last_name=wl_last or pending.last_name,
+        password=pending.password_hash,              
         is_staff=True if role == "admin" else False,
-        is_superuser=False,  
-        is_active=True, 
+        is_superuser=False,
+        is_active=True,
     )
 
-    pending.is_verified = True
     pending.delete()
 
     return user
+
 
 @transaction.atomic
 def resend_registration_otp(*, email: str) -> None:
     email = email.strip().lower()
 
-    allowed, _role = _resolve_role_from_whitelist(email)
+    allowed, _role, wl_first, wl_last = _resolve_from_whitelist(email)
     if not allowed:
         raise PermissionError("El correo no está autorizado (whitelist).")
 
@@ -160,17 +171,26 @@ def resend_registration_otp(*, email: str) -> None:
     pending.otp_sent_at = now
     pending.expires_at = now + timedelta(minutes=OTP_TTL_MINUTES)
     pending.resend_count += 1
-    pending.save(update_fields=["otp_code", "otp_sent_at", "expires_at", "resend_count", "updated_at"])
+
+    if wl_first:
+        pending.first_name = wl_first
+    if wl_last:
+        pending.last_name = wl_last
+
+    pending.save(update_fields=[
+        "otp_code", "otp_sent_at", "expires_at", "resend_count",
+        "first_name", "last_name", "updated_at"
+    ])
 
     _send_otp_email(email=email, otp=new_otp, first_name=pending.first_name)
 
 
 def get_registration_status(*, email: str) -> Dict:
     email = email.strip().lower()
-    allowed, role = _resolve_role_from_whitelist(email)
+    allowed, role, _wl_first, _wl_last = _resolve_from_whitelist(email)
 
     now = timezone.now()
-    data = {
+    data: Dict = {
         "email": email,
         "allowed": allowed,
         "role": role,

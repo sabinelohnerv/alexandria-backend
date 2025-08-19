@@ -1,8 +1,6 @@
 from rest_framework import serializers
 
 class RequestOtpSerializer(serializers.Serializer):
-    first_name = serializers.CharField(max_length=120)
-    last_name = serializers.CharField(max_length=120)
     email = serializers.EmailField()
     password = serializers.CharField(min_length=8, write_only=True)
 

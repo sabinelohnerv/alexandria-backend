@@ -21,8 +21,6 @@ class RequestRegistrationOtpView(APIView):
         data = serializer.validated_data
         try:
             request_registration_otp(
-                first_name=data["first_name"],
-                last_name=data["last_name"],
                 email=data["email"],
                 password=data["password"],
             )
