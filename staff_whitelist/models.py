@@ -12,7 +12,6 @@ class StaffWhitelist(models.Model):
     last_name = models.CharField(max_length=120)
     email = models.EmailField(unique=True)
 
-    # NUEVO: rol deseado al registrar la cuenta
     role = models.CharField(
         max_length=10,
         choices=Role.choices,

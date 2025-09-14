@@ -1,7 +1,13 @@
 ﻿import os
-from celery import Celery
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+# Evita que Transformers intente importar torchvision (origen de torchvision::nms)
+os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
+# Evita los avisos de paralelismo del tokenizador
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+from celery import Celery  
 
 app = Celery("config")
 app.config_from_object("django.conf:settings", namespace="CELERY")

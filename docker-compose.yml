@@ -78,6 +78,7 @@ services:
       - .env
     volumes:
       - ./:/app
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,3 +106,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  hf_cache:

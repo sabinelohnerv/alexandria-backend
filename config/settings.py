@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     "accounts_signup",
     "accounts_auth",
     "accounts_password",
+    "documents",
+    "search"
 ]
 
 MIDDLEWARE = [
