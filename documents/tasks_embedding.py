@@ -1,22 +1,33 @@
+# documents/tasks_embedding.py
 import os
-import inspect
+import logging
 from celery import shared_task
 from django.db import transaction
 from .models import Document, Chunk
 
+log = logging.getLogger(__name__)
+
 _MODEL = None
+_MODEL_NAME = os.getenv("EMBEDDINGS_MODEL", "BAAI/bge-m3")
 
 def get_model():
     """Carga perezosa del modelo para no romper el arranque del worker."""
     global _MODEL
     if _MODEL is None:
-        # Asegura que Transformers no intente cargar torchvision
+        # Evita import de torchvision por transformers
         os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
-        # Import perezoso: evita cargar transformers/torch al importar el módulo
+        os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         from sentence_transformers import SentenceTransformer
-        name = os.getenv("EMBEDDINGS_MODEL", "BAAI/bge-m3")
-        _MODEL = SentenceTransformer(name)
+        _MODEL = SentenceTransformer(_MODEL_NAME)
+        log.info("SentenceTransformer loaded: %s", _MODEL_NAME)
     return _MODEL
+
+def _prepare_passages(texts):
+    """Para BGE/E5/GTE, prefija 'passage: ' a cada texto del corpus."""
+    name = (_MODEL_NAME or "").lower()
+    if any(k in name for k in ("bge", "e5", "gte")):
+        return [f"passage: {t}" for t in texts]
+    return texts
 
 @shared_task(queue="embedding")
 def warmup_embeddings():
@@ -24,7 +35,7 @@ def warmup_embeddings():
     m.encode(["ok"], batch_size=1, normalize_embeddings=True, convert_to_numpy=True)
     return "ready"
 
-@shared_task(queue="embedding")
+@shared_task(queue="embedding", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def embed_document(doc_id: int, batch_size: int = 32):
     model = get_model()
 
@@ -38,19 +49,14 @@ def embed_document(doc_id: int, batch_size: int = 32):
         Document.objects.filter(id=doc_id).update(state="FAILED")
         return
 
-    encode_kwargs = dict(
+    texts = _prepare_passages([r["text"] for r in rows])
+
+    vectors = model.encode(
+        texts,
         batch_size=batch_size,
-        normalize_embeddings=True,   # para similitud coseno
+        normalize_embeddings=True,   # similitud coseno
         convert_to_numpy=True,
     )
-    try:
-        if "prompt_name" in inspect.signature(model.encode).parameters:
-            encode_kwargs["prompt_name"] = "passage"
-    except (ValueError, TypeError):
-        pass
-
-    texts = [r["text"] for r in rows]
-    vectors = model.encode(texts, **encode_kwargs)
 
     with transaction.atomic():
         for v, r in zip(vectors, rows):

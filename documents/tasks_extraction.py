@@ -1,7 +1,6 @@
 import re
 from io import BytesIO
 from celery import shared_task
-from pdfminer.high_level import extract_text
 from django.db import transaction
 from .models import Document
 from .utils import get_pdf_bytes, normalize_spaces
@@ -30,9 +29,7 @@ def extract_document(doc_id: int):
     from .tasks_chunking import chunk_document
     chunk_document.delay(doc.id, content)
 
-
 def extract_tcp(text: str) -> dict:
-    """Split into I/II/III and POR TANTO if present."""
     sections = {}
     pt = re.split(r"(?i)\bPOR\s+TANTO\b[:\-]?", text, maxsplit=1)
     body = pt[0]
@@ -40,7 +37,6 @@ def extract_tcp(text: str) -> dict:
 
     parts = re.split(r"(?m)^(I{1,3}\.)\s*", body)
     if len(parts) > 1:
-        # parts = ["", "I.", "txtI", "II.", "txtII", ...]
         for i in range(1, len(parts), 2):
             sections[parts[i].strip(".")] = parts[i + 1].strip()
     else:
@@ -51,9 +47,7 @@ def extract_tcp(text: str) -> dict:
 
     return {"blocks": sections}
 
-
 def extract_tsj(text: str) -> dict:
-    """Try to find MAXIMA and RATIO blocks."""
     blocks = {}
     m = re.split(r"(?im)^\s*M[ÁA]XIMA\s*:?\s*$", text, maxsplit=1)
     if len(m) > 1:
@@ -66,9 +60,7 @@ def extract_tsj(text: str) -> dict:
         blocks["BODY"] = text
     return {"blocks": blocks}
 
-
 def extract_cpc(text: str) -> dict:
-    """Split by articles: 'Artículo 1.-' or 'Art. 1.-'."""
     pattern = re.compile(r"(?im)^(?:Art[íi]?culo|Art\.)\s+\d+\.-\s*")
     blocks = {}
     current = None

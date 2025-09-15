@@ -6,24 +6,26 @@ from .utils import sliding_windows, count_tokens
 @shared_task(queue="chunking")
 def chunk_document(doc_id: int, content: dict):
     doc = Document.objects.get(id=doc_id)
-    blocks = content.get("blocks", {"BODY": content.get("text", "")})
+    blocks = (content.get("blocks") or {"BODY": content.get("text") or ""})
 
     ordinal = 0
     to_create = []
     for section, text in blocks.items():
+        text = text or ""
         for piece in sliding_windows(text, max_tokens=900, overlap=120):
             ordinal += 1
             to_create.append(Chunk(
                 document=doc,
                 ordinal=ordinal,
-                section=section[:120],
+                section=(section or "")[:120],
                 text=piece,
                 token_count=count_tokens(piece),
             ))
 
     with transaction.atomic():
         Chunk.objects.filter(document=doc).delete()
-        Chunk.objects.bulk_create(to_create, batch_size=100)
+        if to_create:
+            Chunk.objects.bulk_create(to_create, batch_size=100)
         doc.state = "CHUNKED"
         doc.save(update_fields=["state"])
 

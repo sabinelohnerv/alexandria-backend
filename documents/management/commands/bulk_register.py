@@ -8,7 +8,6 @@ def parse_date_maybe(value: str):
     if not value:
         return None
     try:
-        # ISO: YYYY-MM-DD
         return date.fromisoformat(value)
     except Exception:
         return None
@@ -17,19 +16,27 @@ class Command(BaseCommand):
     help = "Register documents from a CSV manifest and enqueue extraction."
 
     def add_arguments(self, parser):
-        parser.add_argument("--csv", required=True, help="CSV path with columns: storage_key,source_slug,authority,doc_type,number,year,published_date,title")
+        parser.add_argument(
+            "--csv",
+            required=True,
+            help="CSV path with columns: storage_key,source_slug,authority,doc_type,number,year,published_date,title"
+        )
 
     def handle(self, *args, **opts):
         path = opts["csv"]
         created = 0
         skipped = 0
+        bad_rows = 0
 
-        with open(path, newline="", encoding="utf-8") as f:
+        # utf-8-sig para tolerar BOM
+        with open(path, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            for idx, row in enumerate(reader, start=2):  # start=2 por header en línea 1
                 storage_key = (row.get("storage_key") or "").strip()
                 source_slug = (row.get("source_slug") or "").strip()
                 if not storage_key or not source_slug:
+                    bad_rows += 1
+                    self.stderr.write(f"[row {idx}] missing storage_key/source_slug; skipping")
                     continue
 
                 defaults = {
@@ -51,4 +58,6 @@ class Command(BaseCommand):
                 else:
                     skipped += 1
 
-        self.stdout.write(self.style.SUCCESS(f"Registered: {created}, skipped (already existed): {skipped}"))
+        self.stdout.write(self.style.SUCCESS(
+            f"Registered: {created}, skipped (already existed): {skipped}, bad rows: {bad_rows}"
+        ))
