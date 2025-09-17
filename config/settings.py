@@ -232,8 +232,12 @@ WHITELIST_REVOKE_REFRESH_ON_DEACTIVATE = env.bool("WHITELIST_REVOKE_REFRESH_ON_D
 # -----------------------------
 RAG_EMBEDDINGS_PROVIDER = env("RAG_EMBEDDINGS_PROVIDER", default="local")   # local|openai|hf
 EMBEDDINGS_MODEL = env("EMBEDDINGS_MODEL", default="multilingual-e5-large")
+RERANKER_MODEL = env("RERANKER_MODEL", default="BAAI/bge-reranker-v2-m3")
 HYBRID_ALPHA = env.float("HYBRID_ALPHA", default=0.6)       # peso de semántica vs. léxica
 SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=50)
 RERANK_TOP_N = env.int("RERANK_TOP_N", default=12)
+RERANK_CANDIDATES = env.int("RERANK_CANDIDATES", default=80)
+RERANK_BATCH_SIZE = env.int("RERANK_BATCH_SIZE", default=32)  
+ENABLE_RERANK = env.bool("ENABLE_RERANK", default=True)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default=None)
 HF_API_TOKEN = env("HF_API_TOKEN", default=None)
