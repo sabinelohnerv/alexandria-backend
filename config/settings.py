@@ -234,6 +234,6 @@ RAG_EMBEDDINGS_PROVIDER = env("RAG_EMBEDDINGS_PROVIDER", default="local")   # lo
 EMBEDDINGS_MODEL = env("EMBEDDINGS_MODEL", default="multilingual-e5-large")
 HYBRID_ALPHA = env.float("HYBRID_ALPHA", default=0.6)       # peso de semántica vs. léxica
 SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=50)
-RERANK_TOP_N = env.int("RERANK_TOP_N", default=10)
+RERANK_TOP_N = env.int("RERANK_TOP_N", default=12)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default=None)
 HF_API_TOKEN = env("HF_API_TOKEN", default=None)
