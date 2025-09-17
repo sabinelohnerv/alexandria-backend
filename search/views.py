@@ -12,6 +12,7 @@ from .serializers import (
     FeedbackSerializer,
 )
 from .services import ask as ask_service
+from .throttles import BurstRateThrottle, SustainedRateThrottle
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
@@ -55,6 +56,7 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
 class AskView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [BurstRateThrottle, SustainedRateThrottle]
 
     def post(self, request, *args, **kwargs):
         s = AskRequestSerializer(data=request.data)

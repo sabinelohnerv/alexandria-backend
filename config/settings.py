@@ -53,7 +53,7 @@ INSTALLED_APPS = [
     "accounts_auth",
     "accounts_password",
     "documents",
-    "search"
+    "search",
 ]
 
 MIDDLEWARE = [
@@ -145,7 +145,8 @@ REST_FRAMEWORK = {
         "pwd_resend_email": "2/hour",
         "pwd_status_ip": "30/minute",
         "pwd_status_email": "10/minute",
-        # "search_ip": "60/minute",
+        "search_ask_burst": "10/minute",
+        "search_ask_sustained": "500/day",
         # "rag_ip": "30/minute",
     },
 }
