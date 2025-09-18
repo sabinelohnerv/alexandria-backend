@@ -336,14 +336,13 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     max_snippets = 5
     final_hits: List[Tuple[Chunk, float, Dict[str, float], Optional[float]]]
     if use_mmr and reranked:
-        # Convertimos a formato esperado por mmr_select: [(chunk, score_base, extra)]
-        # Usamos como score_base el rerank si existe; si no, el híbrido.
+        # formato esperado por mmr_select: [(chunk, score_base, extra)]
+        # score_base el rerank si existe; si no, el híbrido.
         base_for_mmr = [(ch, (s_rr if s_rr is not None else s_h), extra) for (ch, s_h, extra, s_rr) in reranked]
         qvec = _encode_query(query)
         k = max_snippets
         mmr_selected = mmr_select(base_for_mmr[: max(20, k * 4)], qvec, k=k, lambda_=0.7)
-        # mmr_selected: [(chunk, score_base, extra)]
-        # Reinyectamos s_h y s_rr desde 'reranked' original
+        # Reinyectar s_h y s_rr desde 'reranked' original
         map_info = {ch.id: (s_h, extra, s_rr) for (ch, s_h, extra, s_rr) in reranked}
         final_hits = []
         for (ch, _score_base, _extra) in mmr_selected:
@@ -372,7 +371,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
 
         # Guardar todos los resultados rerankeados (no solo los de síntesis)
         hits: List[SearchHit] = []
-        # Para orden estable, reconstruimos el orden final para almacenamiento:
+        # Para orden estable, reconstrucción del orden final para almacenamiento:
         store_list = reranked  # ya está recortado a TOP_N
         for i, (ch, s_h, extra, s_rr) in enumerate(store_list, start=1):
             kwargs = dict(
