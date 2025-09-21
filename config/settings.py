@@ -236,8 +236,33 @@ RERANKER_MODEL = env("RERANKER_MODEL", default="BAAI/bge-reranker-v2-m3")
 HYBRID_ALPHA = env.float("HYBRID_ALPHA", default=0.6)       # peso de semántica vs. léxica
 SEARCH_TOP_K = env.int("SEARCH_TOP_K", default=50)
 RERANK_TOP_N = env.int("RERANK_TOP_N", default=12)
-RERANK_CANDIDATES = env.int("RERANK_CANDIDATES", default=80)
-RERANK_BATCH_SIZE = env.int("RERANK_BATCH_SIZE", default=32)  
+FUSION_CANDIDATES = env.int("FUSION_CANDIDATES", default=100)
+RERANK_CANDIDATES = env.int("RERANK_CANDIDATES", default=100)
+RERANK_BATCH_SIZE = env.int("RERANK_BATCH_SIZE", default=32) 
+RRF_K = 60.0
 ENABLE_RERANK = env.bool("ENABLE_RERANK", default=True)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default=None)
 HF_API_TOKEN = env("HF_API_TOKEN", default=None)
+
+# Pesos de la fórmula
+RANK_WEIGHTS = {
+    "W_CE": 1.0,
+    "W_VIG": 0.75,
+    "W_ORG": 0.35,
+    "W_ID": 0.90,
+    "W_T": 0.25,
+}
+
+# Jerarquía de órgano
+ORG_WEIGHTS = {
+    "tcp": 1.0,
+    "tsj": 0.8,
+    "sala": 0.6,
+    "ley": 0.7,
+    "cpe": 0.9,
+    "otros": 0.3,
+}
+
+# Recencia (solo jurisprudencia)
+RECENCY_SOURCES = {"tcp", "tsj", "sala"}
+RECENCY_HALFLIFE_DAYS = 4 * 365
