@@ -65,12 +65,12 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     top_for_ui = combined[:top_n]
 
     # 4) MMR opcional para diversidad visual (sobre TOP_N ya combinado)
-    use_mmr = True
-    max_snippets = 5
+    use_mmr = bool(get_setting("ENABLE_MMR", True))
+    max_snippets = int(get_setting("MMR_K", 5))
     if use_mmr and top_for_ui:
         # MMR usa como base el score final
         mmr_in = [(ch, s_final, extra) for (ch, _s_base, extra, _s_ce, s_final, _signals) in top_for_ui]
-        mmr_selected = mmr_select(mmr_in, qvec, k=max_snippets, lambda_=0.7)
+        mmr_selected = mmr_select(mmr_in, qvec, k=max_snippets, lambda_=float(get_setting("MMR_LAMBDA", 0.7)))
         # Reinyectar estructuras originales preservando s_final
         id_map = {ch.id: (s_base, extra, s_ce, s_final, signals) for (ch, s_base, extra, s_ce, s_final, signals) in top_for_ui}
         final_hits = []

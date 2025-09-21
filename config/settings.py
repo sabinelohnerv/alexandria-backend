@@ -53,7 +53,7 @@ INSTALLED_APPS = [
     "accounts_auth",
     "accounts_password",
     "documents",
-    "search",
+    "search.apps.SearchConfig",
 ]
 
 MIDDLEWARE = [
