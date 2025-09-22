@@ -12,7 +12,6 @@ def build_messages(query: str, snippets: List[Dict[str, Any]]) -> list:
     Construye mensajes estilo Chat para un modelo instruct. 
     snippets: lista de dicts con {"chunk_id","doc_id","title","section","text"}.
     """
-    # Empaquetamos contexto como un 'document' para delimitar claramente la evidencia
     context_lines = []
     for sn in snippets:
         ctx_title = sn.get("title") or ""
