@@ -39,7 +39,9 @@ class ChatSessionViewSet(mixins.ListModelMixin,
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = ChatSession.objects.all().order_by("-updated_at")
+        qs = (ChatSession.objects
+            .only("id", "title", "user_id", "created_at", "updated_at")
+            .order_by("-updated_at"))
         u = self.request.user
         if not (u.is_staff or u.is_superuser):
             qs = qs.filter(user=u)
@@ -63,7 +65,11 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         session_id = self.kwargs.get("session_pk")
-        qs = ChatMessage.objects.filter(session_id=session_id).select_related("session").order_by("created_at")
+        qs = (ChatMessage.objects
+            .filter(session_id=session_id)
+            .select_related("session")
+            .only("id", "session_id", "role", "text", "answer_json", "latency_ms", "created_at")
+            .order_by("created_at"))
         u = self.request.user
         if not (u.is_staff or u.is_superuser):
             qs = qs.filter(session__user=u)

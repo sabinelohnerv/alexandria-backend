@@ -8,10 +8,11 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
+    session_title = serializers.CharField(source="session.title", read_only=True)
+
     class Meta:
         model = ChatMessage
-        fields = ["id", "session", "role", "text", "answer_json", "latency_ms", "created_at"]
-
+        fields = ["id", "session", "session_title", "role", "text", "answer_json", "latency_ms", "created_at"]
 
 class SearchHitSerializer(serializers.ModelSerializer):
     document_id = serializers.IntegerField(source="document.id", read_only=True)

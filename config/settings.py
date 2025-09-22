@@ -147,7 +147,6 @@ REST_FRAMEWORK = {
         "pwd_status_email": "10/minute",
         "search_ask_burst": "10/minute",
         "search_ask_sustained": "500/day",
-        # "rag_ip": "30/minute",
     },
 }
 
