@@ -26,6 +26,13 @@ DEFAULTS = {
     "ENABLE_MMR": True,          
     "MMR_K": 5,                  
     "MMR_LAMBDA": 0.7,
+    "LLM_PROVIDER": "together",
+    "TOGETHER_MODEL": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "TOGETHER_MAX_TOKENS": 768,
+    "TOGETHER_TEMPERATURE": 0.2,
+    "TOGETHER_TOP_P": 1.0,
+    "TOGETHER_FREQUENCY_PENALTY": 0.0,
+    "TOGETHER_PRESENCE_PENALTY": 0.0,
 }
 
 def get_setting(name: str, default=None):

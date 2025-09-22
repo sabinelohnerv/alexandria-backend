@@ -12,7 +12,7 @@ from .ranking.retrieval import vector_search, lexical_search, rrf_fuse
 from .ranking.reranker import rerank_hits
 from .ranking.signals import compute_legal_signals, combine_final_score
 from .ranking.mmr import mmr_select
-from .ranking.synthesis import synthesize_answer
+from .generation.synthesis import synthesize_answer
 
 
 def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMessage, List[SearchHit]]:
