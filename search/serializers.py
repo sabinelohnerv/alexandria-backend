@@ -2,9 +2,11 @@ from rest_framework import serializers
 from .models import ChatSession, ChatMessage, SearchHit, Feedback
 
 class ChatSessionSerializer(serializers.ModelSerializer):
+    is_deleted = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = ChatSession
-        fields = ["id", "title", "created_at", "updated_at"]
+        fields = ["id", "title", "created_at", "updated_at", "is_deleted"]
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):

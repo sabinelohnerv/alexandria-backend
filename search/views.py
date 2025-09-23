@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, mixins, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 
 from .models import ChatSession, ChatMessage, SearchHit, Feedback
 from .serializers import (
@@ -29,30 +30,49 @@ class IsOwnerOrAdmin(permissions.BasePermission):
 class ChatSessionViewSet(mixins.ListModelMixin,
                          mixins.RetrieveModelMixin,
                          mixins.CreateModelMixin,
+                         mixins.UpdateModelMixin,          
+                         mixins.DestroyModelMixin,        
                          viewsets.GenericViewSet):
     """
-    Crear sesión:
-      - No confíes en 'user' desde el payload: lo seteamos siempre a request.user.
-      - Lista/Detalle: solo del dueño, salvo staff/superuser.
+    CRUD de sesiones del usuario:
+      - Create: asigna request.user como dueño.
+      - List/Retrieve: sólo del dueño (salvo admin/superuser).
+      - Update (PATCH): renombrar sesión (title).
+      - Destroy (DELETE): soft delete (marca deleted_at).
+      - restore (POST /sessions/{id}/restore/): revierte soft delete.
     """
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = (ChatSession.objects
-            .only("id", "title", "user_id", "created_at", "updated_at")
-            .order_by("-updated_at"))
+        qs = ChatSession.objects.all().order_by("-updated_at", "-id")
         u = self.request.user
-        if not (u.is_staff or u.is_superuser):
+
+        include_deleted = self.request.query_params.get("include_deleted") == "1"
+        if not include_deleted:
+            qs = qs.filter(deleted_at__isnull=True)
+
+        see_all = self.request.query_params.get("all") == "1"
+        if not ((u.is_staff or u.is_superuser) and see_all):
             qs = qs.filter(user=u)
+
         return qs
 
     def perform_create(self, serializer):
-        """
-        Inyecta el usuario autenticado como dueño de la sesión.
-        Evita que el cliente imponga otro user_id.
-        """
         serializer.save(user=self.request.user)
+
+    def perform_destroy(self, instance: ChatSession):
+        # Soft delete
+        instance.soft_delete()
+
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        "Restaura una sesión soft-deleted (si pertenece al usuario)."
+        session = self.get_object()  # respeta permisos/propiedad
+        if not session.deleted_at:
+            return Response({"detail": "Session is not deleted"}, status=status.HTTP_400_BAD_REQUEST)
+        session.restore()
+        return Response(self.get_serializer(session).data, status=status.HTTP_200_OK)
 
 
 class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -63,17 +83,21 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        session_id = self.kwargs.get("session_pk")
-        qs = (ChatMessage.objects
-            .filter(session_id=session_id)
-            .select_related("session")
-            .only("id", "session_id", "role", "text", "answer_json", "latency_ms", "created_at")
-            .order_by("created_at"))
-        u = self.request.user
-        if not (u.is_staff or u.is_superuser):
-            qs = qs.filter(session__user=u)
-        return qs
+def get_queryset(self):
+    session_id = self.kwargs.get("session_pk")
+    u = self.request.user
+    see_all = self.request.query_params.get("all") == "1"
+
+    qs = (ChatMessage.objects
+          .filter(session_id=session_id, session__deleted_at__isnull=True)
+          .select_related("session")
+          .order_by("created_at"))
+
+    if not ((u.is_staff or u.is_superuser) and see_all):
+        qs = qs.filter(session__user=u)
+
+    return qs
+
 
 
 class AskView(APIView):
@@ -92,15 +116,19 @@ class AskView(APIView):
 
         session = None
         if "session_id" in data and data["session_id"]:
-            # Validar pertenencia
             try:
                 session = ChatSession.objects.get(pk=data["session_id"])
             except ChatSession.DoesNotExist:
                 return Response({"detail": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
 
+            # Propiedad
             if not (request.user.is_staff or request.user.is_superuser):
                 if session.user_id != request.user.id:
                     return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+            # No permitir preguntar en una sesión borrada
+            if session.deleted_at is not None:
+                return Response({"detail": "Session was deleted"}, status=status.HTTP_410_GONE)
 
         # ask_service crea la sesión si 'session' es None y asigna user=request.user
         msg, hits = ask_service(request.user, data["query"], session=session)

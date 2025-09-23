@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 User = settings.AUTH_USER_MODEL
 
@@ -8,12 +9,27 @@ class ChatSession(models.Model):
     title = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-updated_at", "-id"]
 
     def __str__(self):
         return self.title or f"Session #{self.pk}"
+    
+    def soft_delete(self):
+        if not self.deleted_at:
+            self.deleted_at = timezone.now()
+            self.save(update_fields=["deleted_at"])
+
+    def restore(self):
+        if self.deleted_at:
+            self.deleted_at = None
+            self.save(update_fields=["deleted_at"])
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
 
 
 class ChatMessage(models.Model):
