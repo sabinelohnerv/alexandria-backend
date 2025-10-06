@@ -83,22 +83,20 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     serializer_class = ChatMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-def get_queryset(self):
-    session_id = self.kwargs.get("session_pk")
-    u = self.request.user
-    see_all = self.request.query_params.get("all") == "1"
+    def get_queryset(self):
+        session_id = self.kwargs.get("session_pk")
+        u = self.request.user
+        see_all = self.request.query_params.get("all") == "1"
 
-    qs = (ChatMessage.objects
-          .filter(session_id=session_id, session__deleted_at__isnull=True)
-          .select_related("session")
-          .order_by("created_at"))
+        qs = (ChatMessage.objects
+            .filter(session_id=session_id, session__deleted_at__isnull=True)
+            .select_related("session")
+            .order_by("created_at"))
 
-    if not ((u.is_staff or u.is_superuser) and see_all):
-        qs = qs.filter(session__user=u)
+        if not ((u.is_staff or u.is_superuser) and see_all):
+            qs = qs.filter(session__user=u)
 
-    return qs
-
-
+        return qs
 
 class AskView(APIView):
     """

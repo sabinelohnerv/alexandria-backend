@@ -33,7 +33,6 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # Almacenamiento S3-compatible para PDFs/CSVs
   minio:
     image: minio/minio:latest
     container_name: local_minio
@@ -46,37 +45,37 @@ services:
     ports:
       - "9000:9000"   # API
       - "9001:9001"   # Consola web
-    # sin healthcheck para evitar 'unhealthy' por falta de wget/curl
     restart: unless-stopped
 
   # API Django
   web:
     build: .
     container_name: django_web
-    command: bash -lc "python manage.py migrate && gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --timeout 120"
+    command: >
+      bash -lc "
+      python manage.py migrate &&
+      gunicorn config.asgi:application
+        -k uvicorn.workers.UvicornWorker
+        -b 0.0.0.0:8000
+        --workers=${WEB_CONCURRENCY:-1}
+        --threads=${WEB_THREADS:-8}
+        --timeout=${WEB_TIMEOUT:-120}
+        --graceful-timeout=30
+        --keep-alive=5
+        --max-requests=1000
+        --max-requests-jitter=100
+        --worker-tmp-dir=/dev/shm
+        --access-logfile=-
+        --error-logfile=-
+      "
     env_file:
       - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TRANSFORMERS_NO_TORCHVISION: "1"
+      TOKENIZERS_PARALLELISM: "false"
     ports:
       - "8000:8000"
-    volumes:
-      - ./:/app
-      - hf_cache:/root/.cache/huggingface 
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    restart: unless-stopped
-
-  # Workers Celery
-  worker:
-    build: .
-    container_name: celery_worker
-    command: bash -lc "celery -A config.celery:app worker -Q ingestion,extraction,chunking,embedding -l INFO --concurrency=2"
-    env_file:
-      - .env
     volumes:
       - ./:/app
       - hf_cache:/root/.cache/huggingface
@@ -85,15 +84,67 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_started
+    # Límites y memoria compartida para evitar OOM y tmp en RAM
+    shm_size: 1g
+    mem_limit: 2g
+    memswap_limit: 3g
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
+    stop_grace_period: 30s
+
+  # Workers Celery
+  worker:
+    build: .
+    container_name: celery_worker
+    command: >
+      bash -lc "
+      celery -A config.celery:app worker
+        -Q ingestion,extraction,chunking,embedding
+        -l INFO
+        --concurrency=${CELERY_CONCURRENCY:-2}
+      "
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TRANSFORMERS_NO_TORCHVISION: "1"
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      - ./:/app
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    shm_size: 1g
+    mem_limit: 2g
+    memswap_limit: 3g
+    restart: unless-stopped
+    stop_grace_period: 30s
 
   # Programador de tareas
   beat:
     build: .
     container_name: celery_beat
-    command: bash -lc "celery -A config.celery:app beat -l INFO"
+    command: >
+      bash -lc "
+      celery -A config.celery:app beat -l INFO
+      "
     env_file:
       - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./:/app
     depends_on:
@@ -102,6 +153,7 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    stop_grace_period: 30s
 
 volumes:
   postgres_data:

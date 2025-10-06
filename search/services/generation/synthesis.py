@@ -32,7 +32,6 @@ def synthesize_answer(query: str, final_hits: List[Tuple[Any, float, dict, float
     """
     Construye el prompt con snippets y llama al modelo en Together (vía cliente OpenAI).
     Retorna {"text": <respuesta>, "snippets": <lista_serializable_para_guardar>} 
-    tal como espera tu ask.py.
     """
     # 1) Selección de snippets
     snippets = _truncate_snippets(final_hits, max_snippets=max_snippets)

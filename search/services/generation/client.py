@@ -8,7 +8,7 @@ _client: Optional[OpenAI] = None
 
 def together_client() -> OpenAI:
     """
-    Crea (una vez) y devuelve un cliente OpenAI apuntando a Together.
+    Crea (una vez) y devuelve un cliente apuntando a Together.
     Requiere TOGETHER_API_KEY en entorno.
     """
     global _client

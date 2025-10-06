@@ -1,4 +1,3 @@
-# documents/tasks_embedding.py
 import os
 import logging
 from celery import shared_task
@@ -14,7 +13,6 @@ def get_model():
     """Carga perezosa del modelo para no romper el arranque del worker."""
     global _MODEL
     if _MODEL is None:
-        # Evita import de torchvision por transformers
         os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
         from sentence_transformers import SentenceTransformer
