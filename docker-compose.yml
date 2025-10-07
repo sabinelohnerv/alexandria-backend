@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -47,33 +49,36 @@ services:
       - "9001:9001"   # Consola web
     restart: unless-stopped
 
-  # API Django
+  # API Django (ASGI)
   web:
     build: .
     container_name: django_web
-    command: >
-      bash -lc "
-      python manage.py migrate &&
-      gunicorn config.asgi:application
-        -k uvicorn.workers.UvicornWorker
-        -b 0.0.0.0:8000
-        --workers=${WEB_CONCURRENCY:-1}
-        --threads=${WEB_THREADS:-8}
-        --timeout=${WEB_TIMEOUT:-120}
-        --graceful-timeout=30
-        --keep-alive=5
-        --max-requests=1000
-        --max-requests-jitter=100
-        --worker-tmp-dir=/dev/shm
-        --access-logfile=-
-        --error-logfile=-
-      "
+    working_dir: /app
+    command:
+      [
+        "sh","-lc",
+        "python manage.py migrate && \
+        exec gunicorn config.asgi:application \
+        -k uvicorn.workers.UvicornWorker \
+        -b 0.0.0.0:8000 \
+        --workers=${WEB_CONCURRENCY:-1} \
+        --threads=${WEB_THREADS:-8} \
+        --timeout=${WEB_TIMEOUT:-120} \
+        --graceful-timeout=30 \
+        --keep-alive=5 \
+        --max-requests=1000 \
+        --max-requests-jitter=100 \
+        --worker-tmp-dir=/dev/shm \
+        --access-logfile=- \
+        --error-logfile=-"
+      ]
     env_file:
       - .env
     environment:
       PYTHONUNBUFFERED: "1"
       TRANSFORMERS_NO_TORCHVISION: "1"
       TOKENIZERS_PARALLELISM: "false"
+      PYTHONPATH: /app
     ports:
       - "8000:8000"
     volumes:
@@ -86,7 +91,6 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
-    # Límites y memoria compartida para evitar OOM y tmp en RAM
     shm_size: 1g
     mem_limit: 2g
     memswap_limit: 3g
@@ -95,7 +99,13 @@ services:
         soft: 65536
         hard: 65536
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -106,19 +116,19 @@ services:
   worker:
     build: .
     container_name: celery_worker
+    working_dir: /app
     command: >
-      bash -lc "
-      celery -A config.celery:app worker
+      sh -lc "celery -A config.celery:app worker
         -Q ingestion,extraction,chunking,embedding
         -l INFO
-        --concurrency=${CELERY_CONCURRENCY:-2}
-      "
+        --concurrency=${CELERY_CONCURRENCY:-2}"
     env_file:
       - .env
     environment:
       PYTHONUNBUFFERED: "1"
       TRANSFORMERS_NO_TORCHVISION: "1"
       TOKENIZERS_PARALLELISM: "false"
+      PYTHONPATH: /app
     volumes:
       - ./:/app
       - hf_cache:/root/.cache/huggingface
@@ -133,18 +143,18 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
-  # Programador de tareas
+  # Programador de tareas Celery Beat
   beat:
     build: .
     container_name: celery_beat
+    working_dir: /app
     command: >
-      bash -lc "
-      celery -A config.celery:app beat -l INFO
-      "
+      sh -lc "celery -A config.celery:app beat -l INFO"
     env_file:
       - .env
     environment:
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
     volumes:
       - ./:/app
     depends_on:

@@ -18,7 +18,7 @@ from .serializers import (
 )
 from .services import ask as ask_service
 from .throttles import BurstRateThrottle, SustainedRateThrottle
-from ..common.services.minio_storage import presign_get_url
+from common.services.minio_storage import presign_get_url
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
