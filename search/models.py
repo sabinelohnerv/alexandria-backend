@@ -45,7 +45,7 @@ class ChatMessage(models.Model):
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
     role = models.CharField(max_length=16, choices=ROLE_CHOICES)
     text = models.TextField()
-    answer_json = models.JSONField(null=True, blank=True)  # citas, layout, etc.
+    answer_json = models.JSONField(null=True, blank=True) 
     latency_ms = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -90,13 +90,34 @@ class Feedback(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [
-            # Al menos uno de (message, hit)
-            models.CheckConstraint(
-                check=(
-                    models.Q(message__isnull=False) | models.Q(hit__isnull=False)
-                ),
-                name="feedback_requires_message_or_hit",
-            )
-        ]
         ordering = ["-id"]
+        constraints = [
+            models.CheckConstraint(
+                check=(models.Q(message__isnull=False) | models.Q(hit__isnull=False)),
+                name="feedback_requires_message_or_hit",
+            ),
+
+            models.UniqueConstraint(
+                fields=["user", "message"],
+                condition=models.Q(hit__isnull=True, message__isnull=False),
+                name="uniq_feedback_user_message",
+            ),
+
+            models.UniqueConstraint(
+                fields=["user", "hit"],
+                condition=models.Q(message__isnull=True, hit__isnull=False),
+                name="uniq_feedback_user_hit",
+            ),
+
+            models.UniqueConstraint(
+                fields=["user", "message", "hit"],
+                condition=models.Q(message__isnull=False, hit__isnull=False),
+                name="uniq_feedback_user_message_hit",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["label"]),
+            models.Index(fields=["message"]),
+            models.Index(fields=["hit"]),
+        ]

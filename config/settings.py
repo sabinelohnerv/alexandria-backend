@@ -210,7 +210,7 @@ CELERY_TASK_DEFAULT_QUEUE = "default"
 # Usa -Q ingestion,extraction,chunking,embedding al arrancar el worker
 
 # -----------------------------
-# S3 / MinIO (presigned o django-storages)
+# S3 / MinIO
 # -----------------------------
 S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default=None)          # ej. http://minio:9000
 S3_BUCKET_NAME = env("S3_BUCKET_NAME", default=None)            # ej. alexandria
@@ -219,6 +219,7 @@ S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default=None)
 S3_REGION = env("S3_REGION", default="us-east-1")
 S3_ADDRESSING_STYLE = env("S3_ADDRESSING_STYLE", default="path")  # path|auto
 S3_USE_SSL = env.bool("S3_USE_SSL", default=False)
+MINIO_PRESIGN_EXPIRES = env.int("MINIO_PRESIGN_EXPIRES", default=300)
 
 # -----------------------------
 # Flags / Reglas Whitelist
