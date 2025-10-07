@@ -1,6 +1,6 @@
-# Django + Postgres/Redis (Docker) + Whitelist + OTP por Email + JWT + Swagger
+# ALEXANDRIA (ASISTENTE DE INVESTIGACIÓN JURÍDICA) - BACKEND
 
-Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redis** en **Docker**, gestión de **whitelist** (con rol `admin`/`user`), **registro con OTP por email**, **login JWT**, **recuperación de contraseña con OTP por email**.
+Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redis** en **Docker**, gestión de **whitelist** (con rol `admin`/`user`), **registro con OTP por email**, **login JWT**, **recuperación de contraseña con OTP por email**, **ask**, **sessions**.
 
 ## 🚀 Características
 - **DBs en Docker**: `postgres:16-alpine`, `redis:7-alpine` (app Django corre local).
