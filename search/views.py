@@ -11,7 +11,7 @@ from .models import ChatSession, ChatMessage, SearchHit, Feedback
 from .serializers import (
     ChatSessionSerializer,
     ChatMessageSerializer,
-    SearchHitSerializer,
+    SearchHitWithDocSerializer,
     AskRequestSerializer,
     AskResponseSerializer,
     FeedbackSerializer,
@@ -228,7 +228,6 @@ class HitFileView(APIView):
         title = doc.title or f"document-{doc.id}"
         fname = f"{slugify(title) or 'document'}-{doc.id}.pdf"
 
-        # Si tienes doc.mime_type úsalo; por ahora asumimos PDF
         url = presign_get_url(
             key=doc.storage_key,
             filename=fname,

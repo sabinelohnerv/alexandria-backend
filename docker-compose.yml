@@ -8,8 +8,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-appdb}
       POSTGRES_USER: ${POSTGRES_USER:-appuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
-    ports:
-      - "5432:5432"
+    ports: ["5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d
@@ -24,10 +23,8 @@ services:
     image: redis:7-alpine
     container_name: local_redis
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+    ports: ["6379:6379"]
+    volumes: [ "redis_data:/data" ]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -42,11 +39,10 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_password}
-    volumes:
-      - minio_data:/data
+    volumes: [ "minio_data:/data" ]
     ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Consola web
+      - "9000:9000"
+      - "9001:9001"
     restart: unless-stopped
 
   # API Django (ASGI)
@@ -72,96 +68,83 @@ services:
         --access-logfile=- \
         --error-logfile=-"
       ]
-    env_file:
-      - .env
+    env_file: [ .env ]
     environment:
       PYTHONUNBUFFERED: "1"
       TRANSFORMERS_NO_TORCHVISION: "1"
       TOKENIZERS_PARALLELISM: "false"
       PYTHONPATH: /app
-    ports:
-      - "8000:8000"
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_CACHE: /root/.cache/huggingface
+    ports: ["8000:8000"]
     volumes:
       - ./:/app
-      - hf_cache:/root/.cache/huggingface
+      - django_docker_db_hf_cache:/root/.cache/huggingface
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_started }
     shm_size: 1g
     mem_limit: 2g
     memswap_limit: 3g
     ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
+      nofile: { soft: 65536, hard: 65536 }
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()",
-        ]
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz').read()"]
       interval: 30s
       timeout: 5s
       retries: 3
     restart: unless-stopped
     stop_grace_period: 30s
 
-  # Workers Celery
+  # Worker Celery
   worker:
     build: .
     container_name: celery_worker
     working_dir: /app
     command: >
       sh -lc "celery -A config.celery:app worker
-        -Q ingestion,extraction,chunking,embedding
-        -l INFO
-        --concurrency=${CELERY_CONCURRENCY:-2}"
-    env_file:
-      - .env
+        --loglevel=INFO
+        --pool=prefork
+        -c ${CELERY_CONCURRENCY}
+        -Q ingestion,extraction,chunking,embedding,default"
+    env_file: [ .env ]
     environment:
       PYTHONUNBUFFERED: "1"
       TRANSFORMERS_NO_TORCHVISION: "1"
       TOKENIZERS_PARALLELISM: "false"
       PYTHONPATH: /app
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_CACHE: /root/.cache/huggingface
+      CELERY_CONCURRENCY: "2"
     volumes:
       - ./:/app
-      - hf_cache:/root/.cache/huggingface
+      - django_docker_db_hf_cache:/root/.cache/huggingface
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     shm_size: 1g
     mem_limit: 2g
     memswap_limit: 3g
     restart: unless-stopped
     stop_grace_period: 30s
 
-  # Programador de tareas Celery Beat
+  # Programador Celery Beat
   beat:
     build: .
     container_name: celery_beat
     working_dir: /app
     command: >
       sh -lc "celery -A config.celery:app beat -l INFO"
-    env_file:
-      - .env
+    env_file: [ .env ]
     environment:
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: /app
     volumes:
       - ./:/app
     depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -169,4 +152,5 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
-  hf_cache:
+  django_docker_db_hf_cache:
+    external: true   

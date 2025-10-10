@@ -136,7 +136,7 @@ class ChunkBriefSerializer(serializers.ModelSerializer):
 class SearchHitWithDocSerializer(serializers.ModelSerializer):
     document = DocumentBriefSerializer(read_only=True)
     chunk = ChunkBriefSerializer(read_only=True)
-    snippet = serializers.CharField(read_only=True)  
+    snippet = serializers.SerializerMethodField()
 
     class Meta:
         model = SearchHit
@@ -147,3 +147,10 @@ class SearchHitWithDocSerializer(serializers.ModelSerializer):
             "document", "chunk",
             "snippet",
         ]
+
+    def get_snippet(self, obj):
+        include_snippet = self.context.get("include_snippet") is True
+        if not include_snippet:
+            return None
+        txt = getattr(obj.chunk, "block", None) or getattr(obj.chunk, "text", "") or ""
+        return (txt[:500] + "…") if len(txt) > 500 else txt

@@ -5,8 +5,11 @@ from django.db import transaction
 from .models import Document
 from .utils import get_pdf_bytes, normalize_spaces
 
-@shared_task(queue="extraction")
+@shared_task(queue="extraction", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def extract_document(doc_id: int):
+    """
+    Extrae texto del PDF y despacha el chunking.
+    """
     from pdfminer.high_level import extract_text
 
     doc = Document.objects.get(id=doc_id)
@@ -26,8 +29,10 @@ def extract_document(doc_id: int):
         doc.state = "EXTRACTED"
         doc.save(update_fields=["meta", "state"])
 
+    # Encolar explícitamente en la cola chunking
     from .tasks_chunking import chunk_document
-    chunk_document.delay(doc.id, content)
+    chunk_document.apply_async(args=[doc.id, content], queue="chunking")
+
 
 def extract_tcp(text: str) -> dict:
     sections = {}
@@ -47,6 +52,7 @@ def extract_tcp(text: str) -> dict:
 
     return {"blocks": sections}
 
+
 def extract_tsj(text: str) -> dict:
     blocks = {}
     m = re.split(r"(?im)^\s*M[ÁA]XIMA\s*:?\s*$", text, maxsplit=1)
@@ -59,6 +65,7 @@ def extract_tsj(text: str) -> dict:
     else:
         blocks["BODY"] = text
     return {"blocks": blocks}
+
 
 def extract_cpc(text: str) -> dict:
     pattern = re.compile(r"(?im)^(?:Art[íi]?culo|Art\.)\s+\d+\.-\s*")
