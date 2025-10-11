@@ -1,3 +1,4 @@
+# documents/tasks_embedding.py
 import os
 import logging
 from celery import shared_task
@@ -13,16 +14,13 @@ def get_model():
     """Carga perezosa del modelo para no romper el arranque del worker."""
     global _MODEL
     if _MODEL is None:
-        # Asegura la ruta cache dentro del volumen montado
+        # Evita import de torchvision por transformers
         os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-        os.environ.setdefault("HF_HOME", "/root/.cache/huggingface")
-        os.environ.setdefault("HF_HUB_CACHE", "/root/.cache/huggingface")
         from sentence_transformers import SentenceTransformer
         _MODEL = SentenceTransformer(_MODEL_NAME)
         log.info("SentenceTransformer loaded: %s", _MODEL_NAME)
     return _MODEL
-
 
 def _prepare_passages(texts):
     """Para BGE/E5/GTE, prefija 'passage: ' a cada texto del corpus."""
@@ -31,13 +29,11 @@ def _prepare_passages(texts):
         return [f"passage: {t}" for t in texts]
     return texts
 
-
 @shared_task(queue="embedding")
 def warmup_embeddings():
     m = get_model()
     m.encode(["ok"], batch_size=1, normalize_embeddings=True, convert_to_numpy=True)
     return "ready"
-
 
 @shared_task(queue="embedding", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def embed_document(doc_id: int, batch_size: int = 32):
@@ -45,9 +41,9 @@ def embed_document(doc_id: int, batch_size: int = 32):
 
     rows = list(
         Chunk.objects
-            .filter(document_id=doc_id)
-            .order_by("ordinal")
-            .values("id", "text")
+             .filter(document_id=doc_id)
+             .order_by("ordinal")
+             .values("id", "text")
     )
     if not rows:
         Document.objects.filter(id=doc_id).update(state="FAILED")
@@ -58,7 +54,7 @@ def embed_document(doc_id: int, batch_size: int = 32):
     vectors = model.encode(
         texts,
         batch_size=batch_size,
-        normalize_embeddings=True,
+        normalize_embeddings=True,   # similitud coseno
         convert_to_numpy=True,
     )
 

@@ -3,7 +3,7 @@ from django.db import transaction
 from .models import Document, Chunk
 from .utils import sliding_windows, count_tokens
 
-@shared_task(queue="chunking", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+@shared_task(queue="chunking")
 def chunk_document(doc_id: int, content: dict):
     doc = Document.objects.get(id=doc_id)
     blocks = (content.get("blocks") or {"BODY": content.get("text") or ""})
@@ -30,4 +30,4 @@ def chunk_document(doc_id: int, content: dict):
         doc.save(update_fields=["state"])
 
     from .tasks_embedding import embed_document
-    embed_document.apply_async(args=[doc.id], queue="embedding")
+    embed_document.delay(doc.id)
