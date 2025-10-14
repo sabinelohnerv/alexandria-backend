@@ -111,20 +111,32 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     @action(detail=True, methods=["get"], url_path="hits")
     def hits(self, request, session_pk=None, pk=None):
         """
-        Lista los hits de un mensaje con datos legibles del documento y chunk.
-        Parámetros opcionales:
+        Lista los hits del mensaje con metadatos del documento/chunk y feedback por hit:
+          - useful_count / not_useful_count
+          - my_feedback_label (voto del usuario actual)
+        Parámetros:
           - include_snippet=1  -> añade 'snippet' (texto truncado del chunk)
-          - limit=N            -> número máximo de hits (por defecto, sin límite/paginación DRF)
+          - limit=N            -> límite si NO usas paginación DRF
         """
         message = self.get_object()
+        u = request.user
+
+        my_vote_hit_subq = (Feedback.objects
+            .filter(user=u, hit=OuterRef("pk"))
+            .values("label")[:1])
 
         qs = (SearchHit.objects
               .filter(message=message)
               .select_related("document", "chunk")
+              .annotate(
+                  useful_count=Count("feedbacks", filter=Q(feedbacks__label=Feedback.LABEL_USEFUL)),
+                  not_useful_count=Count("feedbacks", filter=Q(feedbacks__label=Feedback.LABEL_NOT_USEFUL)),
+                  my_feedback_label=Cast(Subquery(my_vote_hit_subq), CharField()),
+              )
               .order_by("rank"))
 
         limit = request.query_params.get("limit")
-        if limit and str(limit).isdigit():
+        if limit and str(limit).isdigit() and not self.paginator:
             qs = qs[:int(limit)]
 
         include_snippet = request.query_params.get("include_snippet") == "1"
@@ -132,20 +144,14 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         page = self.paginate_queryset(qs)
         data_qs = page if page is not None else qs
 
-        serialized = []
-        for hit in data_qs:
-            snippet = None
-            if include_snippet:
-                text = getattr(hit.chunk, "block", None) or ""
-                snippet = (text[:500] + "…") if len(text) > 500 else text
-
-            ser = SearchHitWithDocSerializer(hit, context={"request": request}).data
-            ser["snippet"] = snippet
-            serialized.append(ser)
+        ser = SearchHitWithDocSerializer(
+            data_qs, many=True,
+            context={"request": request, "include_snippet": include_snippet}
+        )
 
         if page is not None:
-            return self.get_paginated_response(serialized)
-        return Response(serialized, status=200)
+            return self.get_paginated_response(ser.data)
+        return Response(ser.data, status=200)
 
 class AskView(APIView):
 

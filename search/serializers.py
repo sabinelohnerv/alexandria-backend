@@ -136,15 +136,23 @@ class ChunkBriefSerializer(serializers.ModelSerializer):
 class SearchHitWithDocSerializer(serializers.ModelSerializer):
     document = DocumentBriefSerializer(read_only=True)
     chunk = ChunkBriefSerializer(read_only=True)
+
+    # feedback por hit (los llena la vista vía annotate)
+    useful_count = serializers.IntegerField(read_only=True)
+    not_useful_count = serializers.IntegerField(read_only=True)
+    my_feedback_label = serializers.CharField(read_only=True, allow_null=True)
+
+    # snippet opcional
     snippet = serializers.SerializerMethodField()
 
     class Meta:
         model = SearchHit
         fields = [
-            "id", "rank",
-            "score_vector", "score_lexical", "score_rerank",
-            "meta_json", "created_at",
-            "document", "chunk",
+            "id","rank",
+            "score_vector","score_lexical","score_rerank",
+            "meta_json","created_at",
+            "document","chunk",
+            "useful_count","not_useful_count","my_feedback_label",
             "snippet",
         ]
 
@@ -152,5 +160,5 @@ class SearchHitWithDocSerializer(serializers.ModelSerializer):
         include_snippet = self.context.get("include_snippet") is True
         if not include_snippet:
             return None
-        txt = getattr(obj.chunk, "block", None) or getattr(obj.chunk, "text", "") or ""
-        return (txt[:500] + "…") if len(txt) > 500 else txt
+        text = getattr(obj.chunk, "block", None) or getattr(obj.chunk, "text", "") or ""
+        return (text[:500] + "…") if len(text) > 500 else text
