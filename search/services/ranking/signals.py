@@ -1,7 +1,7 @@
 import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, date
-
+from typing import Sequence, Dict, Any
 from documents.models import Document
 from .settings import (
     get_setting,
@@ -11,6 +11,7 @@ from .settings import (
     RECENCY_HALFLIFE_DAYS_DEFAULT,
 )
 
+SIGNAL_ORDER = ["vigente", "peso_org", "match_id", "recencia"]
 
 def _norm_slug(s: Optional[str]) -> str:
     if not s:
@@ -18,6 +19,14 @@ def _norm_slug(s: Optional[str]) -> str:
     import re as _re
     return _re.sub(r"[^a-z0-9]+", "", s.lower())
 
+def _to_unit(x: float) -> float:
+    # asegura [0,1]
+    if x is None:
+        return 0.0
+    try:
+        return max(0.0, min(1.0, float(x)))
+    except Exception:
+        return 0.0
 
 def _infer_slug_from_storage(doc: Document) -> Optional[str]:
     sk = (doc.storage_key or "").lower()
@@ -144,6 +153,24 @@ def _recency_score(doc: Document) -> float:
     half_life = float(get_setting("RECENCY_HALFLIFE_DAYS", RECENCY_HALFLIFE_DAYS_DEFAULT))
     return float(0.5 ** (age_days / max(1.0, half_life)))
 
+def signals_to_vector(signals: Dict[str, Any]) -> List[float]:
+    """
+    Convierte  dict de señales -> vector en el orden de SIGNAL_ORDER.
+    - vigente, match_id -> 0/1
+    - peso_org ya viene ~[0..1]
+    - recencia ya está en [0..1] por  half-life
+    """
+    return [
+        1.0 if bool(signals.get("vigente")) else 0.0,         # vigente
+        _to_unit(float(signals.get("peso_org", 0.0))),         # peso_org
+        1.0 if bool(signals.get("match_id")) else 0.0,         # match_id
+        _to_unit(float(signals.get("recencia", 0.0))),         # recencia
+    ]
+
+def score_with_weights(s_ce: float, signals: Dict[str, Any],
+                       w: Sequence[float], alpha: float) -> float:
+    x = signals_to_vector(signals)  
+    return alpha * float(s_ce) + sum(wi*xi for wi, xi in zip(w, x))
 
 def compute_legal_signals(query: str, doc: Document) -> Dict[str, Any]:
     ids = _extract_ids(query)
@@ -157,7 +184,6 @@ def compute_legal_signals(query: str, doc: Document) -> Dict[str, Any]:
         "peso_org": float(org_w),
         "recencia": float(rec),
     }
-
 
 def combine_final_score(s_ce: float, signals: Dict[str, Any]) -> float:
     W = get_setting("RANK_WEIGHTS", RANK_WEIGHTS_DEFAULT)
@@ -179,3 +205,10 @@ def combine_final_score(s_ce: float, signals: Dict[str, Any]) -> float:
         + w_id * term_id
         + w_t * term_t
     )
+
+def combine_final_score_vector(s_ce: float, signals: Dict[str, Any]) -> float:
+    from .adaptive import get_active_signal_weights, get_alpha_ce  # import tardío, evita ciclos
+    w = get_active_signal_weights()     # [w_vig, w_org, w_id, w_rec]
+    alpha = get_alpha_ce()
+    x = signals_to_vector(signals)      # [vig, org, id, rec]
+    return alpha * float(s_ce) + sum(wi*xi for wi, xi in zip(w, x))

@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
 import environ
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -45,7 +46,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "drf_spectacular_sidecar",
-    "pgvector.django",            # habilita migraciones para extensión vector
+    "pgvector.django",            
 
     # Apps
     "staff_whitelist",
@@ -54,6 +55,7 @@ INSTALLED_APPS = [
     "accounts_password",
     "documents",
     "search.apps.SearchConfig",
+    "ranking_adaptive"
 ]
 
 MIDDLEWARE = [
@@ -266,3 +268,14 @@ ORG_WEIGHTS = {
 # Recencia (solo jurisprudencia)
 RECENCY_SOURCES = {"tcp", "tsj", "sala"}
 RECENCY_HALFLIFE_DAYS = 4 * 365
+
+ADAPTIVE_RANKING_ENABLED = True
+ADAPTIVE_RANKING_ALPHA = 1.0  
+
+CELERY_BEAT_SCHEDULE = {
+    "train-signal-weights-weekly": {
+        "task": "ranking_adaptive.tasks.train_signal_weights",
+        "schedule": crontab(hour=3, minute=0, day_of_week="sun"),  # Domingos 03:00
+        "args": (),   # puedes pasar días/lr/steps si quieres
+    },
+}
