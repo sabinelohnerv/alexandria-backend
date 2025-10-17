@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import timedelta
 import environ
 from celery.schedules import crontab
+from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -87,17 +88,30 @@ TEMPLATES = [{
 # -----------------------------
 # Base de datos
 # -----------------------------
+DEFAULT_LOCAL_URL = (
+    f"postgres://{env('POSTGRES_USER', default='appuser')}:"
+    f"{env('POSTGRES_PASSWORD', default='app_password')}@"
+    f"{env('POSTGRES_HOST', default='postgres')}:"
+    f"{env('POSTGRES_PORT', default='5432')}/"
+    f"{env('POSTGRES_DB', default='appdb')}"
+)
+
+# Si DATABASE_URL está vacío/incompleto en .env, se usará DEFAULT_LOCAL_URL
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB"),
-        "USER": env("POSTGRES_USER"),
-        "PASSWORD": env("POSTGRES_PASSWORD"),
-        "HOST": env("POSTGRES_HOST", default="127.0.0.1"),
-        "PORT": env("POSTGRES_PORT", default="5432"),
-        "CONN_MAX_AGE": 60,  # pooling simple
-    }
+    "default": env.db("DATABASE_URL", default=DEFAULT_LOCAL_URL)
 }
+
+# Pooling simple en Django (además del pool de Neon)
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+
+# SSL: automáticamente para Neon/externo
+DATABASES["default"].setdefault("OPTIONS", {})
+host = DATABASES["default"].get("HOST") or urlparse(
+    env("DATABASE_URL", default=DEFAULT_LOCAL_URL)
+).hostname
+
+if host not in {"localhost", "127.0.0.1", "postgres"}:
+    DATABASES["default"]["OPTIONS"].setdefault("sslmode", "require")
 
 # -----------------------------
 # Cache / Sesiones (Redis)

@@ -1,5 +1,6 @@
 services:
   postgres:
+    profiles: ["local-db"] 
     image: pgvector/pgvector:pg16
     container_name: local_postgres
     environment:
@@ -80,8 +81,6 @@ services:
       - ./:/app
       - django_docker_db_hf_cache:/root/.cache/huggingface
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       minio:
@@ -119,8 +118,6 @@ services:
       - ./:/app
       - django_docker_db_hf_cache:/root/.cache/huggingface
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -140,7 +137,6 @@ services:
       - ./:/app
     depends_on:
       redis: { condition: service_healthy }
-      postgres: { condition: service_healthy }
     restart: unless-stopped
     stop_grace_period: 30s
 
