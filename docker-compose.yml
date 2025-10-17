@@ -19,6 +19,7 @@ services:
     restart: unless-stopped
 
   redis:
+    profiles: ["local-db"] 
     image: redis:7-alpine
     container_name: local_redis
     command: ["redis-server", "--appendonly", "yes"]
@@ -79,10 +80,7 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-      - django_docker_db_hf_cache:/root/.cache/huggingface
     depends_on:
-      redis:
-        condition: service_healthy
       minio:
         condition: service_started
     shm_size: 1g
@@ -116,10 +114,6 @@ services:
       - .env
     volumes:
       - ./:/app
-      - django_docker_db_hf_cache:/root/.cache/huggingface
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
 
   # Programador Celery Beat
@@ -135,8 +129,6 @@ services:
       PYTHONPATH: /app
     volumes:
       - ./:/app
-    depends_on:
-      redis: { condition: service_healthy }
     restart: unless-stopped
     stop_grace_period: 30s
 

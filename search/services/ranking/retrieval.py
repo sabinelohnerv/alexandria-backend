@@ -6,12 +6,8 @@ from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
 from documents.models import Chunk
 from .settings import get_setting
 
-
 # ---- Vector search -----------------------------------------------------------
 def vector_search(query_vec: np.ndarray, top_k: Optional[int] = None) -> List[Tuple[Chunk, float]]:
-    """
-    Devuelve [(chunk, score_vector)] donde score_vector es similitud coseno ~[0..1].
-    """
     if top_k is None:
         top_k = get_setting("SEARCH_TOP_K", 50)
 
@@ -24,7 +20,6 @@ def vector_search(query_vec: np.ndarray, top_k: Optional[int] = None) -> List[Tu
     )
     out: List[Tuple[Chunk, float]] = []
     for ch in qs:
-        # CosineDistance en pgvector: 0 (idéntico) .. 2 (opuestos)
         sim = 1.0 - float(ch.distance) / 2.0
         out.append((ch, sim))
     return out
@@ -32,9 +27,6 @@ def vector_search(query_vec: np.ndarray, top_k: Optional[int] = None) -> List[Tu
 
 # ---- Lexical search ----------------------------------------------------------
 def lexical_search(query: str, top_k: Optional[int] = None) -> List[Tuple[Chunk, float]]:
-    """
-    Devuelve [(chunk, score_lexical)] ordenado desc, donde score_lexical = ts_rank_cd.
-    """
     if top_k is None:
         top_k = get_setting("SEARCH_TOP_K", 50)
 
@@ -62,11 +54,6 @@ def rrf_fuse(vec_pairs: List[Tuple[Chunk, float]],
              lex_pairs: List[Tuple[Chunk, float]],
              k_rrf: float = 60.0,
              limit: int = 100) -> List[Tuple[Chunk, float, Dict[str, float]]]:
-    """
-    Funde listas por RRF considerando los órdenes independientes.
-    Salida: [(chunk, rrf_score_total, {"vec": sim, "lex": rank})] ordenado desc.
-    """
-    # Mapear rangos
     rank_map_vec: Dict[int, int] = {}
     rank_map_lex: Dict[int, int] = {}
 
@@ -75,7 +62,6 @@ def rrf_fuse(vec_pairs: List[Tuple[Chunk, float]],
     for i, (ch, _s) in enumerate(sorted(lex_pairs, key=lambda t: t[1], reverse=True), start=1):
         rank_map_lex[ch.id] = i
 
-    # Unir IDs
     by_id: Dict[int, Dict[str, Any]] = {}
     for ch, s in vec_pairs:
         by_id.setdefault(ch.id, {"chunk": ch, "vec": float(s)})

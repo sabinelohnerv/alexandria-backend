@@ -3,6 +3,7 @@ from datetime import timedelta
 import environ
 from celery.schedules import crontab
 from urllib.parse import urlparse
+import ssl, certifi
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -122,8 +123,12 @@ CACHES = {
         "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "CONNECTION_POOL_KWARGS": {
+                "ssl_cert_reqs": ssl.CERT_REQUIRED,
+                "ssl_ca_certs": certifi.where(),
+            },
         },
-        "TIMEOUT": 300,  # 5 min
+        "TIMEOUT": 300,
     }
 }
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -221,7 +226,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
-# (Opcional) colas por defecto; puedes configurarlas también en celery.py
 CELERY_TASK_DEFAULT_QUEUE = "default"
 # Usa -Q ingestion,extraction,chunking,embedding al arrancar el worker
 
@@ -246,6 +250,11 @@ WHITELIST_REVOKE_REFRESH_ON_DEACTIVATE = env.bool("WHITELIST_REVOKE_REFRESH_ON_D
 # -----------------------------
 # RAG / Búsqueda (parámetros base)
 # -----------------------------
+HF_EMB_BASE = env("HF_EMB_BASE", default="")  
+HF_TOKEN = env("HF_TOKEN", default="")     
+HF_TIMEOUT_S  = env.float("HF_TIMEOUT_SECONDS", "60")   
+HF_RR_BASE = env("HF_RR_BASE", default="")   
+RR_TIMEOUT  = env.float("HF_RR_TIMEOUT_SECONDS", "60")   
 RAG_EMBEDDINGS_PROVIDER = env("RAG_EMBEDDINGS_PROVIDER", default="local")   # local|openai|hf
 EMBEDDINGS_MODEL = env("EMBEDDINGS_MODEL", default="multilingual-e5-large")
 RERANKER_MODEL = env("RERANKER_MODEL", default="BAAI/bge-reranker-v2-m3")
