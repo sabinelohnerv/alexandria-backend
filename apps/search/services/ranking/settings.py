@@ -20,7 +20,8 @@ DEFAULTS = {
     "SEARCH_TOP_K": 24,
     "FUSION_CANDIDATES": 60,
     "RRF_K": 60.0,
-    "RERANK_CANDIDATES": 40,     
+    "RERANK_CANDIDATES": 30,  
+    "MAX_RERANK_CHARS": 1200,   
     "RERANK_TOP_N": 10,
     "RERANK_BATCH_SIZE": 16,     
     "ENABLE_RERANK": True,
@@ -34,6 +35,9 @@ DEFAULTS = {
     "TOGETHER_TOP_P": 1.0,
     "TOGETHER_FREQUENCY_PENALTY": 0.0,
     "TOGETHER_PRESENCE_PENALTY": 0.0,
+    "LEXICAL_CANDIDATE_CAP": 1000,
+    "HNSW_EF_SEARCH": 80,       
+    "IVFFLAT_PROBES": 16,
 }
 
 def get_setting(name: str, default=None):

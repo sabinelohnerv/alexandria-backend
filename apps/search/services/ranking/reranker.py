@@ -8,7 +8,7 @@ from .signals import compute_legal_signals, combine_final_score_vector
 from common.clients.tei_rerank import tei_rerank_scores
 
 _CE_SCORE_CACHE: Dict[str, float] = {}
-_CE_CACHE_MAX = 20000
+_CE_CACHE_MAX = 100_000
 
 def _doc_from_chunk(ch: Chunk):
     try:
@@ -30,7 +30,7 @@ def rerank_hits(
 ) -> List[Tuple[Chunk, float, Dict[str, float], Optional[float], float, dict]]:
 
     if top_n is None:
-        top_n = get_setting("RERANK_CANDIDATES", 100)
+        top_n = get_setting("RERANK_CANDIDATES", 30)
 
     if not get_setting("ENABLE_RERANK", True) or not candidates:
         trimmed = candidates[:top_n]
@@ -57,6 +57,11 @@ def rerank_hits(
         sc = _CE_SCORE_CACHE.get(k)
         if sc is None:
             need_idx.append(i)
+            MAX_RERANK_CHARS = int(get_setting("MAX_RERANK_CHARS", 1200))
+            text = texts[i]
+            if text and len(text) > MAX_RERANK_CHARS:
+                text = text[:MAX_RERANK_CHARS]
+            need_docs.append(text)
             need_docs.append(texts[i])
         else:
             scores_out[i] = sc

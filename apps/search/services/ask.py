@@ -98,19 +98,28 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     rrf_k = float(get_setting("RRF_K", 60.0))
 
     # Embedding de consulta
+    t_emb = time.perf_counter()
     qvec = encode_query(query)
+    perf.append(f"embed_q={_ms(t_emb)}ms")
 
     # Ejecutar vec + lex en paralelo
+    t_veclex = time.perf_counter()
     with ThreadPoolExecutor(max_workers=2) as ex:
+        t_vec = time.perf_counter()
         fut_vec = ex.submit(vector_search, qvec, search_top_k)
+        t_lex = time.perf_counter()
         fut_lex = ex.submit(lexical_search, query, search_top_k)
         vec_pairs = fut_vec.result()
         lex_pairs = fut_lex.result()
+    perf.append(f"vec_db={_ms(t_vec)}ms")
+    perf.append(f"lex_db={_ms(t_lex)}ms")
 
+    t_rrf = time.perf_counter()
     rrf_scored = rrf_fuse(vec_pairs, lex_pairs, k_rrf=rrf_k, limit=fusion_candidates)
+    perf.append(f"rrf_ms={_ms(t_rrf)}ms")
+
     # rank_before según RRF (antes de CE y señales)
     rank_before_map = {ch.id: (idx + 1) for idx, (ch, _s, _e) in enumerate(rrf_scored)}
-
     perf.append(f"retrieve={_ms(t_retrieve)}ms")
 
     # -------- 2) RERANK (TEI) --------
@@ -120,6 +129,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     # rerank_hits devuelve: (chunk, s_base, extra, s_ce, s_final, signals_dict)
     reranked_full = rerank_hits(query, rrf_scored, top_n=rerank_candidates)
 
+    perf.append(f"tei_ms={_ms(t_rerank)}ms")   # <= latencia real del endpoint
     perf.append(f"rerank={_ms(t_rerank)}ms")
 
     # -------- 3) Señales jurídicas + combinación --------
