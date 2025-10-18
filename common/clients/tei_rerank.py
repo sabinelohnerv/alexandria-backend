@@ -4,7 +4,7 @@ from urllib3.util.retry import Retry
 
 HF_RR_BASE  = os.getenv("HF_RR_BASE")
 HF_TOKEN    = os.getenv("HF_TOKEN")
-RR_TIMEOUT  = float(os.getenv("HF_RR_TIMEOUT_SECONDS", "30")) 
+RR_TIMEOUT  = float(os.getenv("HF_RR_TIMEOUT_SECONDS", "20"))  
 
 _session = requests.Session()
 _session.headers.update({
@@ -22,7 +22,6 @@ _session.mount("http://", _adapter)
 _session.mount("https://", _adapter)
 
 def tei_rerank_scores(query: str, docs: list[str], raw: bool = True):
-    total_chars = sum(len(d or "") for d in docs)
     body = {"query": query, "texts": docs, "raw_scores": raw}
     r = _session.post(f"{HF_RR_BASE}/rerank", json=body, timeout=RR_TIMEOUT)
     r.raise_for_status()

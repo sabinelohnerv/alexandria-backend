@@ -55,12 +55,10 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     t0 = time.perf_counter()
     perf: List[str] = []
 
-    # Crear sesión si no viene
     if session is None:
         title = (query[:80] + "…") if len(query) > 80 else query
         session = ChatSession.objects.create(user=user, title=title)
 
-    # Guardar mensaje user (no medimos aquí)
     ChatMessage.objects.create(session=session, role=ChatMessage.ROLE_USER, text=query)
 
     # -------- A/B: bucket y selección de pesos --------
@@ -103,7 +101,6 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     perf.append(f"embed_q={_ms(t_emb)}ms")
 
     # Ejecutar vec + lex en paralelo
-    t_veclex = time.perf_counter()
     with ThreadPoolExecutor(max_workers=2) as ex:
         t_vec = time.perf_counter()
         fut_vec = ex.submit(vector_search, qvec, search_top_k)

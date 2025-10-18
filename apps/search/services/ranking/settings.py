@@ -21,8 +21,9 @@ DEFAULTS = {
     "FUSION_CANDIDATES": 60,
     "RRF_K": 60.0,
     "RERANK_CANDIDATES": 30,  
-    "MAX_RERANK_CHARS": 1200,   
+    "MAX_RERANK_CHARS": 900,   
     "RERANK_TOP_N": 10,
+    "RERANK_DOC_CAP": 2,
     "RERANK_BATCH_SIZE": 16,     
     "ENABLE_RERANK": True,
     "ENABLE_MMR": True,          
@@ -38,6 +39,8 @@ DEFAULTS = {
     "LEXICAL_CANDIDATE_CAP": 1000,
     "HNSW_EF_SEARCH": 80,       
     "IVFFLAT_PROBES": 16,
+    "TEI_WORKERS": 2,        
+    "TEI_SHARD_SIZE": 12,    
 }
 
 def get_setting(name: str, default=None):
