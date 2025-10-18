@@ -1,14 +1,29 @@
-import os
 from typing import List, Tuple, Dict, Optional, Sequence
+from hashlib import sha1
+
+from django.core.cache import cache
 
 from apps.documents.models import Chunk
 from .settings import get_setting
-from .cache import key_pair
+from .cache import key_pair  # lo seguimos importando por compat si lo usas en otros lados
 from .signals import compute_legal_signals, combine_final_score_vector
 from common.clients.tei_rerank import tei_rerank_scores
 
-_CE_SCORE_CACHE: Dict[str, float] = {}
-_CE_CACHE_MAX = 20000
+# ---- Caché (Redis vía django-redis) ----
+CE_CACHE_TTL = int(get_setting("RERANK_CACHE_TTL", 60 * 60 * 24 * 7))  # 7 días
+CE_NS = "ce:"  # namespace para llaves
+
+# Métricas para diagnóstico (leídas desde ask.py opcionalmente)
+_LAST_CACHE_STATS: Dict[str, int] = {"hits": 0, "miss": 0, "set": 0}
+
+
+def get_last_cache_stats() -> Dict[str, int]:
+    """Devuelve y resetea las métricas de uso de caché (para logging en ask.py)."""
+    global _LAST_CACHE_STATS
+    out = dict(_LAST_CACHE_STATS)
+    _LAST_CACHE_STATS = {"hits": 0, "miss": 0, "set": 0}
+    return out
+
 
 def _doc_from_chunk(ch: Chunk):
     try:
@@ -16,11 +31,30 @@ def _doc_from_chunk(ch: Chunk):
     except Exception:
         return None
 
+
 def _remote_scores_hf(query: str, docs: Sequence[str]) -> Optional[List[float]]:
     try:
         return tei_rerank_scores(query, list(docs), raw=True)
     except Exception:
         return None
+
+
+def _stable_key(query: str, ch: Chunk) -> str:
+    """
+    Key robusta y estable para Redis:
+      - sha1 del query normalizado
+      - id de chunk
+      - len(text)
+      - updated_ts en segundos (o 0)
+    """
+    qh = sha1(query.strip().encode("utf-8")).hexdigest()[:20]
+    text_len = len(ch.text or "")
+    updated = getattr(ch, "updated_at", None)
+    try:
+        updated_ts = int(updated.timestamp()) if updated else 0
+    except Exception:
+        updated_ts = 0
+    return f"{CE_NS}{qh}:{ch.id}:{text_len}:{updated_ts}"
 
 
 def rerank_hits(
@@ -46,35 +80,38 @@ def rerank_hits(
 
     cand_trim = candidates[:top_n]
 
-    texts: List[str] = [(c[0].text or "") for c in cand_trim]
+    keys: List[str] = [_stable_key(query, ch) for (ch, _s, _e) in cand_trim]
+
+    cached: Dict[str, float] = cache.get_many(keys) if keys else {}
+
     scores_out: List[Optional[float]] = [None] * len(cand_trim)
     need_idx: List[int] = []
     need_docs: List[str] = []
 
-    for i, (ch, _s, _extra) in enumerate(cand_trim):
-        updated = getattr(ch, "updated_at", None)
-        k = key_pair(query, ch.id, updated, len(ch.text or ""))
-        sc = _CE_SCORE_CACHE.get(k)
+    for i, (ch, _s, _e) in enumerate(cand_trim):
+        k = keys[i]
+        sc = cached.get(k)
         if sc is None:
             need_idx.append(i)
-            need_docs.append(texts[i])
+            need_docs.append(ch.text or "")
+            _LAST_CACHE_STATS["miss"] += 1
         else:
-            scores_out[i] = sc
+            scores_out[i] = float(sc)
+            _LAST_CACHE_STATS["hits"] += 1
 
+    to_set: Dict[str, float] = {}
     if need_idx:
         remote_scores = _remote_scores_hf(query, need_docs)
         if remote_scores and len(remote_scores) == len(need_docs):
             for j, i in enumerate(need_idx):
-                ch = cand_trim[i][0]
-                updated = getattr(ch, "updated_at", None)
-                k = key_pair(query, ch.id, updated, len(ch.text or ""))
                 val = float(remote_scores[j])
                 scores_out[i] = val
-                if len(_CE_SCORE_CACHE) >= _CE_CACHE_MAX:
-                    _CE_SCORE_CACHE.pop(next(iter(_CE_SCORE_CACHE)))
-                _CE_SCORE_CACHE[k] = val
+                to_set[keys[i]] = val
+            if to_set:
+                cache.set_many(to_set, timeout=CE_CACHE_TTL)
+                _LAST_CACHE_STATS["set"] += len(to_set)
 
-    enriched = []
+    enriched: List[Tuple[Chunk, float, Dict[str, float], Optional[float], float, dict]] = []
     for (tpl, sc) in zip(cand_trim, scores_out):
         ch, s_base, extra = tpl
         doc = _doc_from_chunk(ch)

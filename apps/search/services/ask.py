@@ -47,23 +47,20 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     """
     Flujo:
       1) retrieve (vec + lex, en paralelo) -> RRF (C=FUSION_CANDIDATES)
-      2) rerank (cross-encoder TEI) sobre C
-      3) combinar señales jurídicas (fórmula) -> ordenar -> quedarnos con TOP_N
+      2) rerank (cross-encoder) sobre C
+      3) combinar señales jurídicas
       4) (opcional) MMR sobre TOP_N para diversidad visual
       5) síntesis + persistencia
     """
     t0 = time.perf_counter()
     perf: List[str] = []
 
-    # Crear sesión si no viene
     if session is None:
         title = (query[:80] + "…") if len(query) > 80 else query
         session = ChatSession.objects.create(user=user, title=title)
 
-    # Guardar mensaje user (no medimos aquí)
     ChatMessage.objects.create(session=session, role=ChatMessage.ROLE_USER, text=query)
 
-    # -------- A/B: bucket y selección de pesos --------
     bucket = _assign_bucket((session.id or 0))
     alpha = get_alpha_ce()
     w_active = get_active_signal_weights()
@@ -235,7 +232,6 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
             latency_ms=latency_ms,
         )
 
-        # Guardar todos los resultados combinados (lo que mostrará la UI)
         hits: List[SearchHit] = []
         for i, (ch, s_base, extra, s_ce, s_final, signals, s_shadow) in enumerate(final_hits, start=1):
             kwargs = dict(
