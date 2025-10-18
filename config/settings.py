@@ -51,13 +51,13 @@ INSTALLED_APPS = [
     "pgvector.django",            
 
     # Apps
-    "staff_whitelist",
-    "accounts_signup",
-    "accounts_auth",
-    "accounts_password",
-    "documents",
-    "search.apps.SearchConfig",
-    "ranking_adaptive"
+    "apps.staff_whitelist",
+    "apps.accounts_signup",
+    "apps.accounts_auth",
+    "apps.accounts_password",
+    "apps.documents",
+    "apps.search.apps.SearchConfig",
+    "apps.ranking_adaptive"
 ]
 
 MIDDLEWARE = [

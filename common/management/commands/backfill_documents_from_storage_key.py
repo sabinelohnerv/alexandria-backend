@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Q
 
-from documents.models import Document
+from apps.documents.models import Document
 
 NUM_YEAR_PAT = re.compile(r"(?P<num>\d{1,6})-(?P<year>19\d{2}|20\d{2})\b", re.IGNORECASE)
 YEAR_IN_PATH = re.compile(r"raw/(?P<year>19\d{2}|20\d{2})/", re.IGNORECASE)
