@@ -55,7 +55,6 @@ def train_signal_weights(days: int = 30,
         return "NOOP_EMPTY_DATASET"
     prior = _get_prior_w(ds.dim)
     if prior.shape[0] != ds.dim:
-        # prior incompatible; resetea a ceros con la nueva dim
         prior = np.zeros(ds.dim, dtype=float)
 
     if ds.n_pairs == 0 or ds.Xdiff.shape[0] == 0:
