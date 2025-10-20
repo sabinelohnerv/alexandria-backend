@@ -88,7 +88,6 @@ class FeedbackSerializer(serializers.ModelSerializer):
             if owner_id != u.id:
                 raise serializers.ValidationError("No puedes dar feedback sobre contenido de otro usuario.")
 
-        # 6) Sanitizar comentario y límite de longitud
         comment = (attrs.get("comment") or "").strip()
         if len(comment) > 2000:
             raise serializers.ValidationError("El comentario excede 2000 caracteres.")
@@ -97,10 +96,6 @@ class FeedbackSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated):
-        """
-        Idempotencia por (user,message) o (user,hit):
-        si existe, se actualiza; si no, se crea.
-        """
         u = self.context["request"].user
         validated["user"] = u
         msg = validated.get("message")
@@ -137,12 +132,10 @@ class SearchHitWithDocSerializer(serializers.ModelSerializer):
     document = DocumentBriefSerializer(read_only=True)
     chunk = ChunkBriefSerializer(read_only=True)
 
-    # feedback por hit (los llena la vista vía annotate)
     useful_count = serializers.IntegerField(read_only=True)
     not_useful_count = serializers.IntegerField(read_only=True)
     my_feedback_label = serializers.CharField(read_only=True, allow_null=True)
 
-    # snippet opcional
     snippet = serializers.SerializerMethodField()
 
     class Meta:

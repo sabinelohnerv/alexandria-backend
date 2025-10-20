@@ -1,6 +1,7 @@
 from typing import List, Tuple, Dict, Optional, Sequence
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math 
 
 from apps.documents.models import Chunk
 from .settings import get_setting
@@ -17,6 +18,34 @@ def _doc_from_chunk(ch: Chunk):
     except Exception:
         return None
 
+# ==== helpers de normalización CE ====
+def _sigmoid(x: float) -> float:
+    if x >= 0:
+        z = math.exp(-x)
+        return 1.0 / (1.0 + z)
+    else:
+        z = math.exp(x)
+        return z / (1.0 + z)
+
+def _minmax(xs, eps: float = 1e-6):
+    lo = min(xs); hi = max(xs)
+    rng = (hi - lo) if (hi - lo) > eps else eps
+    return [(x - lo) / rng for x in xs]
+
+def _normalize_ce(raw_scores: List[float], mode: str) -> List[float]:
+    if not raw_scores:
+        return []
+    mode = (mode or "sigmoid_minmax").lower()
+    if mode == "raw":
+        return raw_scores[:]  
+    elif mode == "sigmoid":
+        return [_sigmoid(x) for x in raw_scores]
+    elif mode == "minmax":
+        return _minmax(raw_scores)
+    else:
+        return _minmax([_sigmoid(x) for x in raw_scores])
+# ============================================
+
 def _remote_scores_parallel(query: str, docs: Sequence[str], workers: int = 2, shard_size: int = 12) -> Optional[List[float]]:
     n = len(docs)
     if n == 0:
@@ -28,7 +57,7 @@ def _remote_scores_parallel(query: str, docs: Sequence[str], workers: int = 2, s
     results: Dict[int, float] = {}
     def _call(shard: List[int]):
         sub = [docs[i] for i in shard]
-        scores = tei_rerank_scores(query, sub, raw=True)
+        scores = tei_rerank_scores(query, sub, raw=True)  # logits brutos
         for local_pos, global_idx in enumerate(shard):
             results[global_idx] = float(scores[local_pos])
 
@@ -37,7 +66,6 @@ def _remote_scores_parallel(query: str, docs: Sequence[str], workers: int = 2, s
         for _ in as_completed(futs):
             pass
 
-    # Re-construir en orden
     if len(results) != n:
         return None
     return [results[i] for i in range(n)]
@@ -48,13 +76,14 @@ def rerank_hits(
     top_n: Optional[int] = None
 ) -> List[Tuple[Chunk, float, Dict[str, float], Optional[float], float, dict]]:
 
-
     if top_n is None:
         top_n = int(get_setting("RERANK_CANDIDATES", 24))
     max_chars = int(get_setting("MAX_RERANK_CHARS", 900))
     per_doc_cap = int(get_setting("RERANK_DOC_CAP", 2))
-    tei_workers = int(get_setting("TEI_WORKERS", 2))          
-    tei_shard   = int(get_setting("TEI_SHARD_SIZE", 16))     
+    tei_workers = int(get_setting("TEI_WORKERS", 2))
+    tei_shard   = int(get_setting("TEI_SHARD_SIZE", 16))
+
+    ce_mode = str(get_setting("RERANK_SCORE_MODE", "sigmoid_minmax"))
 
     if not get_setting("ENABLE_RERANK", True) or not candidates:
         trimmed = candidates[:top_n]
@@ -62,9 +91,10 @@ def rerank_hits(
         for (ch, s, extra) in trimmed:
             doc = _doc_from_chunk(ch)
             sig = compute_legal_signals(query, getattr(doc, 'document', doc) or doc) if doc else {}
-            s_ce = None
+            s_ce_norm = None 
             s_final = combine_final_score_vector(0.0, sig)
-            out.append((ch, s, extra, s_ce, s_final, sig))
+            extra2 = dict(extra); extra2.setdefault("ce_raw", None)
+            out.append((ch, s, extra2, s_ce_norm, s_final, sig))
         out.sort(key=lambda t: t[4], reverse=True)
         return out
 
@@ -94,11 +124,11 @@ def rerank_hits(
     need_docs: List[str] = []
     for i, (ch, _s, _e) in enumerate(cand_trim):
         updated = getattr(ch, "updated_at", None)
-        k = key_pair(query, ch.id, updated, len(texts[i]))  
+        k = key_pair(query, ch.id, updated, len(texts[i]))
         sc = _CE_SCORE_CACHE.get(k)
         if sc is None:
             need_idx.append(i)
-            need_docs.append(texts[i]) 
+            need_docs.append(texts[i])
         else:
             scores_out[i] = sc
 
@@ -110,7 +140,7 @@ def rerank_hits(
                 ch = cand_trim[i][0]
                 updated = getattr(ch, "updated_at", None)
                 k = key_pair(query, ch.id, updated, len(texts[i]))
-                val = float(remote_scores[j])
+                val = float(remote_scores[j])  # logit bruto
                 scores_out[i] = val
                 if len(_CE_SCORE_CACHE) >= _CE_CACHE_MAX:
                     try:
@@ -119,16 +149,25 @@ def rerank_hits(
                         _CE_SCORE_CACHE.clear()
                 _CE_SCORE_CACHE[k] = val
 
-    # ----- 4) Combinar con señales -----
+    # ----- 4) Normalización CE + combinación con señales -----
+    ce_raw: List[float] = [float(sc) if sc is not None else 0.0 for sc in scores_out]
+    ce_norm: List[float] = _normalize_ce(ce_raw, ce_mode) if any(scores_out) else ce_raw
+
     enriched: List[Tuple[Chunk, float, Dict[str, float], Optional[float], float, dict]] = []
-    for (tpl, sc) in zip(cand_trim, scores_out):
+    for idx, (tpl) in enumerate(cand_trim):
         ch, s_base, extra = tpl
         doc = _doc_from_chunk(ch)
         sig = compute_legal_signals(query, getattr(doc, 'document', doc) or doc) if doc else {}
-        s_ce = None if sc is None else float(sc)
-        s_final = combine_final_score_vector((s_ce or 0.0), sig)
-        enriched.append((ch, s_base, extra, s_ce, s_final, sig))
+
+        s_ce_raw = scores_out[idx]
+        s_ce_norm = None if s_ce_raw is None else float(ce_norm[idx])
+
+        s_final = combine_final_score_vector((s_ce_norm or 0.0), sig)
+
+        extra2 = dict(extra)
+        extra2["ce_raw"] = (float(s_ce_raw) if s_ce_raw is not None else None)
+
+        enriched.append((ch, s_base, extra2, s_ce_norm, s_final, sig))
 
     enriched.sort(key=lambda t: t[4], reverse=True)
     return enriched
-

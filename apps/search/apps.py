@@ -1,6 +1,9 @@
 from django.apps import AppConfig
 import os
 import sys
+import logging
+
+log = logging.getLogger(__name__)
 
 class SearchConfig(AppConfig):
     name = "apps.search"
@@ -17,7 +20,11 @@ class SearchConfig(AppConfig):
             return
 
         try:
-            from . import signals  # noqa: F401
+            try:
+                from . import signals  # noqa: F401  # con importar el módulo alcanza
+            except Exception:
+                log.exception("No se pudo importar apps.search.signals")
+
 
             from .services.ranking.embeddings import warmup_models
             warmup_models()  

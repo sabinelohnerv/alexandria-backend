@@ -37,14 +37,7 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                          mixins.UpdateModelMixin,          
                          mixins.DestroyModelMixin,        
                          viewsets.GenericViewSet):
-    """
-    CRUD de sesiones del usuario:
-      - Create: asigna request.user como dueño.
-      - List/Retrieve: sólo del dueño (salvo admin/superuser).
-      - Update (PATCH): renombrar sesión (title).
-      - Destroy (DELETE): soft delete (marca deleted_at).
-      - restore (POST /sessions/{id}/restore/): revierte soft delete.
-    """
+
     serializer_class = ChatSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -66,13 +59,11 @@ class ChatSessionViewSet(mixins.ListModelMixin,
         serializer.save(user=self.request.user)
 
     def perform_destroy(self, instance: ChatSession):
-        # Soft delete
         instance.soft_delete()
 
     @action(detail=True, methods=["post"])
     def restore(self, request, pk=None):
-        "Restaura una sesión soft-deleted (si pertenece al usuario)."
-        session = self.get_object()  # respeta permisos/propiedad
+        session = self.get_object()
         if not session.deleted_at:
             return Response({"detail": "Session is not deleted"}, status=status.HTTP_400_BAD_REQUEST)
         session.restore()
@@ -170,16 +161,13 @@ class AskView(APIView):
             except ChatSession.DoesNotExist:
                 return Response({"detail": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            # Propiedad
             if not (request.user.is_staff or request.user.is_superuser):
                 if session.user_id != request.user.id:
                     return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-            # No permitir preguntar en una sesión borrada
             if session.deleted_at is not None:
                 return Response({"detail": "Session was deleted"}, status=status.HTTP_410_GONE)
 
-        # ask_service crea la sesión si 'session' es None y asigna user=request.user
         msg, hits = ask_service(request.user, data["query"], session=session)
         out = AskResponseSerializer({"message": msg, "hits": hits})
         return Response(out.data, status=200)
