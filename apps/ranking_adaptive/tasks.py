@@ -35,7 +35,7 @@ def _train_pairwise(prior: np.ndarray, Xdiff: np.ndarray, y: np.ndarray, cfg: Tr
     w = prior.copy()
     for _ in range(cfg.steps):
         pred = Xdiff.dot(w)
-        sigm = 1.0 / (1.0 + np.exp(pred))      # sigmoid(-pred) con y=+1
+        sigm = 1.0 / (1.0 + np.exp(pred))     
         grad = Xdiff.T.dot(-sigm) + 2.0 * cfg.l2 * (w - prior)
         w = w - cfg.lr * grad
         w = _project_constraints(w, prior, cfg)
