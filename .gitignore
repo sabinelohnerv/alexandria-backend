@@ -65,3 +65,8 @@ redis_data/
 node_modules/
 dist/
 build/
+
+extra_commands/
+docs/
+.vscode/
+vscode/
