@@ -18,4 +18,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+ENV DJANGO_SETTINGS_MODULE=config.settings
+
+RUN python manage.py collectstatic --noinput
+
 EXPOSE 8000
+
+CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
