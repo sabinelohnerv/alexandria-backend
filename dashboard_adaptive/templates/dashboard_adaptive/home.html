@@ -6,8 +6,8 @@
 <div class="px-4 sm:px-0">
     <!-- Header -->
     <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-900">Dashboard Overview</h2>
-        <p class="mt-1 text-sm text-gray-600">Last {{ hours }} hours</p>
+        <h2 class="text-2xl font-bold text-gray-900">Dashboard</h2>
+        <p class="mt-1 text-sm text-gray-600">Últimas {{ hours }} horas</p>
     </div>
 
     <!-- Time selector -->
@@ -62,65 +62,15 @@
         {% endfor %}
     </div>
 
-    <!-- Quick Actions -->
-    <div class="bg-white shadow rounded-lg mb-8">
-        <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Train Weights -->
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Train New Version</h4>
-                    <p class="text-xs text-gray-500 mb-3">Enqueue Celery task to train signal weights</p>
-                    <form hx-post="{% url 'dashboard_adaptive:train' %}" 
-                          hx-trigger="submit"
-                          hx-swap="none"
-                          class="space-y-2">
-                        {% csrf_token %}
-                        <div class="grid grid-cols-2 gap-2">
-                            <input type="number" name="days" value="30" min="7" max="90" 
-                                   class="px-2 py-1 text-sm border border-gray-300 rounded" placeholder="Days">
-                            <input type="number" name="steps" value="2000" min="500" max="5000" step="100"
-                                   class="px-2 py-1 text-sm border border-gray-300 rounded" placeholder="Steps">
-                        </div>
-                        <button type="submit" 
-                                class="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                            🚀 Train Weights
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Dataset Info -->
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <h4 class="text-sm font-medium text-gray-900 mb-2">Dataset Info (Dry-run)</h4>
-                    <p class="text-xs text-gray-500 mb-3">Check pairwise dataset without training</p>
-                    <div class="space-y-2">
-                        <input type="number" id="dataset-days" value="30" min="7" max="90"
-                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded" placeholder="Days">
-                        <button hx-get="{% url 'dashboard_adaptive:dataset' %}"
-                                hx-include="#dataset-days"
-                                hx-vals='js:{"days": document.getElementById("dataset-days").value}'
-                                hx-target="#dataset-result"
-                                hx-swap="innerHTML"
-                                class="w-full px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700">
-                            📊 Check Dataset
-                        </button>
-                    </div>
-                    <div id="dataset-result" class="mt-3 text-sm"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Active Version -->
     <div class="bg-white shadow rounded-lg mb-8">
         <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Active Version</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Versión activa</h3>
             {% if active_version %}
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-900">{{ active_version.version }}</p>
-                    <p class="text-xs text-gray-500">Created: {{ active_version.created_at|date:"Y-m-d H:i" }}</p>
+                    <p class="text-xs text-gray-500">Creación: {{ active_version.created_at|date:"Y-m-d H:i" }}</p>
                     <p class="text-xs text-gray-500 mt-1">{{ active_version.notes|truncatewords:15 }}</p>
                 </div>
                 <a href="{% url 'dashboard_adaptive:weights_list' %}" 
@@ -129,7 +79,7 @@
                 </a>
             </div>
             {% else %}
-            <p class="text-sm text-gray-500">No active version</p>
+            <p class="text-sm text-gray-500">No hay versión activa</p>
             {% endif %}
         </div>
     </div>
@@ -137,15 +87,15 @@
     <!-- Recent Assignments -->
     <div class="bg-white shadow rounded-lg">
         <div class="px-4 py-5 sm:p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Recent Experiment Assignments</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Tareas experimentales recientes</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead>
                         <tr>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Query ID</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Bucket</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Versión</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
@@ -165,7 +115,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="px-3 py-4 text-sm text-gray-500 text-center">No assignments yet</td>
+                            <td colspan="4" class="px-3 py-4 text-sm text-gray-500 text-center">Aún no hay tareas</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -177,11 +127,11 @@
     <!-- Stats Summary -->
     <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-white shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt class="text-sm font-medium text-gray-500">Total Decisions ({{ hours }}h)</dt>
+            <dt class="text-sm font-medium text-gray-500">Decisiones totales ({{ hours }}h)</dt>
             <dd class="mt-1 text-3xl font-semibold text-gray-900">{{ total_decisions|default:0 }}</dd>
         </div>
         <div class="bg-white shadow rounded-lg px-4 py-5 sm:p-6">
-            <dt class="text-sm font-medium text-gray-500">Total Feedback ({{ hours }}h)</dt>
+            <dt class="text-sm font-medium text-gray-500">Feedback total ({{ hours }}h)</dt>
             <dd class="mt-1 text-3xl font-semibold text-gray-900">{{ total_feedback|default:0 }}</dd>
         </div>
     </div>

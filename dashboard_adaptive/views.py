@@ -10,9 +10,11 @@ from typing import Dict, List, Any
 
 from apps.ranking_adaptive.models import RankingWeights, RankingDecision, ExperimentAssignment
 from apps.search.models import Feedback, SearchHit, ChatMessage
-from apps.ranking_adaptive.utils import build_pairwise_dataset
-from apps.ranking_adaptive.tasks import train_signal_weights
+from apps.ranking_adaptive.utils import build_pairwise_dataset, _pointwise_label_for_query_hits
+from apps.ranking_adaptive.tasks import train_signal_weights, TrainConfig, _train_pairwise, _get_prior_w
 from apps.search.services.ranking.signals import SIGNAL_ORDER
+import numpy as np
+from collections import defaultdict
 
 # Decorator for staff-only access
 def staff_required(function):
@@ -529,3 +531,248 @@ def _calculate_z_test(control_data, treatment_data):
         'p_value': p_value,
         'significant': p_value < 0.05,
     }
+
+
+# ============================================================
+# TRAINING DASHBOARD (NEW)
+# ============================================================
+
+def compute_ndcg(relevances, k=10):
+    """Compute Normalized Discounted Cumulative Gain"""
+    if not relevances:
+        return 0.0
+    dcg = sum((2**rel - 1) / np.log2(i + 2) for i, rel in enumerate(relevances[:k]))
+    ideal_relevances = sorted(relevances, reverse=True)
+    idcg = sum((2**rel - 1) / np.log2(i + 2) for i, rel in enumerate(ideal_relevances[:k]))
+    return dcg / idcg if idcg > 0 else 0.0
+
+def compute_precision_at_k(relevances, k=10):
+    """Compute Precision@K"""
+    if not relevances or k == 0:
+        return 0.0
+    return sum(relevances[:k]) / min(k, len(relevances))
+
+def compute_mrr(relevances):
+    """Compute Mean Reciprocal Rank"""
+    for i, rel in enumerate(relevances, 1):
+        if rel > 0:
+            return 1.0 / i
+    return 0.0
+
+@staff_required
+def training_dashboard(request):
+    """Main training dashboard with data status and training options."""
+    days = int(request.GET.get('days', 30))
+    
+    # Get data statistics
+    cutoff = timezone.now() - timedelta(days=days)
+    
+    total_messages = ChatMessage.objects.filter(role=ChatMessage.ROLE_USER).count()
+    recent_messages = ChatMessage.objects.filter(role=ChatMessage.ROLE_USER, created_at__gte=cutoff).count()
+    
+    total_feedback = Feedback.objects.count()
+    recent_feedback = Feedback.objects.filter(created_at__gte=cutoff).count()
+    useful_feedback = Feedback.objects.filter(label=Feedback.LABEL_USEFUL, created_at__gte=cutoff).count()
+    not_useful_feedback = Feedback.objects.filter(label=Feedback.LABEL_NOT_USEFUL, created_at__gte=cutoff).count()
+    hit_feedback = Feedback.objects.filter(hit__isnull=False, created_at__gte=cutoff).count()
+    
+    total_decisions = RankingDecision.objects.count()
+    recent_decisions = RankingDecision.objects.filter(ts__gte=cutoff).count()
+    unique_queries = RankingDecision.objects.filter(ts__gte=cutoff).values('query_id').distinct().count()
+    
+    # Try to build dataset
+    try:
+        ds = build_pairwise_dataset(days=days)
+        dataset_ready = ds.n_pairs > 0
+        dataset_info = {
+            'queries': ds.n_queries,
+            'pairs': ds.n_pairs,
+            'dim': ds.dim,
+        }
+    except:
+        dataset_ready = False
+        dataset_info = None
+    
+    # Get active version
+    active_version = RankingWeights.objects.filter(is_active=True).first()
+    total_versions = RankingWeights.objects.count()
+    
+    # Get signal names
+    sample_decision = RankingDecision.objects.filter(signal_names__isnull=False).first()
+    signal_names = sample_decision.signal_names if sample_decision else SIGNAL_ORDER
+    
+    context = {
+        'days': days,
+        'total_messages': total_messages,
+        'recent_messages': recent_messages,
+        'total_feedback': total_feedback,
+        'recent_feedback': recent_feedback,
+        'useful_feedback': useful_feedback,
+        'not_useful_feedback': not_useful_feedback,
+        'hit_feedback': hit_feedback,
+        'total_decisions': total_decisions,
+        'recent_decisions': recent_decisions,
+        'unique_queries': unique_queries,
+        'dataset_ready': dataset_ready,
+        'dataset_info': dataset_info,
+        'active_version': active_version,
+        'total_versions': total_versions,
+        'signal_names': signal_names,
+    }
+    
+    return render(request, 'dashboard_adaptive/training_dashboard.html', context)
+
+
+@staff_required
+@require_POST
+def train_new_version(request):
+    """Train a new weight version with optimized performance."""
+    name = request.POST.get('name', 'manual')
+    days = int(request.POST.get('days', 30))
+    lr = float(request.POST.get('lr', 0.005))
+    steps = int(request.POST.get('steps', 800))
+    l2 = float(request.POST.get('l2', 0.2))
+    clip_rel = float(request.POST.get('clip_rel', 0.5))
+    
+    try:
+        # Build dataset (optimized with select_related)
+        ds = build_pairwise_dataset(days=days)
+        
+        if ds.dim <= 0 or ds.n_pairs == 0:
+            return JsonResponse({
+                'success': False,
+                'message': 'No hay suficientes datos para entrenar'
+            }, status=400)
+        
+        # Get prior weights
+        prior = _get_prior_w(ds.dim)
+        
+        # Train
+        config = TrainConfig(lr=lr, steps=steps, l2=l2, days=days, nonneg_idx=(0, 1), clip_rel=clip_rel)
+        w_new = _train_pairwise(prior, ds.Xdiff, ds.y, config)
+        
+        # Calculate metrics
+        pred = ds.Xdiff.dot(w_new)
+        accuracy = float(np.mean((pred > 0).astype(float) == ds.y))
+        loss = float(np.mean(np.log(1 + np.exp(-pred * ds.y))))
+        
+        # Save version
+        version_name = f"{name}_{timezone.now():%Y%m%d_%H%M%S}"
+        notes = f"Entrenamiento manual: lr={lr} steps={steps} l2={l2} days={days}\n"
+        notes += f"Métricas: acc={accuracy:.4f} loss={loss:.4f} pairs={ds.n_pairs}"
+        
+        weight = RankingWeights.objects.create(
+            version=version_name,
+            weights=list(map(float, w_new)),
+            notes=notes,
+            is_active=False,
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Versión {version_name} creada exitosamente',
+            'version': version_name,
+            'accuracy': accuracy,
+            'loss': loss,
+            'pairs': ds.n_pairs,
+            'weights': list(map(float, w_new)),
+        })
+    
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'message': f'Error: {str(e)}',
+            'traceback': traceback.format_exc() if request.user.is_superuser else None
+        }, status=500)
+
+
+@staff_required
+def evaluate_versions(request):
+    """Evaluate all weight versions with optimized performance."""
+    days = int(request.GET.get('days', 30))
+    cutoff = timezone.now() - timedelta(days=days)
+    
+    # Limit to recent versions for performance
+    versions = RankingWeights.objects.order_by('-created_at')[:20]
+    
+    # Pre-fetch decisions once (optimization)
+    decisions_qs = (RankingDecision.objects
+                   .filter(ts__gte=cutoff)
+                   .only('query_id', 'hit_id', 'shown_pos', 'signals')
+                   .order_by('query_id', 'shown_pos'))
+    
+    # Group by query once
+    by_query = defaultdict(list)
+    for d in decisions_qs:
+        by_query[d.query_id].append(d)
+    
+    # Pre-compute labels for all queries (optimization)
+    query_labels = {}
+    for query_id in by_query.keys():
+        query_labels[query_id] = _pointwise_label_for_query_hits(query_id)
+    
+    results = []
+    
+    for version in versions:
+        weights = np.array(version.weights)
+        
+        # Evaluate on each query
+        query_metrics = []
+        for query_id, decisions in by_query.items():
+            labels = query_labels.get(query_id, {})
+            if not labels:
+                continue
+                
+            labeled = [d for d in decisions if d.hit_id in labels]
+            
+            if len(labeled) < 2:
+                continue
+            
+            # Compute scores
+            scores = []
+            for d in labeled:
+                if d.signals and len(d.signals) == len(weights):
+                    score = float(np.dot(d.signals, weights))
+                    scores.append((score, labels[d.hit_id]))
+            
+            if not scores:
+                continue
+            
+            # Sort by score
+            scores.sort(key=lambda x: x[0], reverse=True)
+            relevances = [rel for _, rel in scores]
+            
+            # Compute metrics
+            query_metrics.append({
+                'ndcg5': compute_ndcg(relevances, k=5),
+                'ndcg10': compute_ndcg(relevances, k=10),
+                'p5': compute_precision_at_k(relevances, k=5),
+                'p10': compute_precision_at_k(relevances, k=10),
+                'mrr': compute_mrr(relevances),
+            })
+        
+        if query_metrics:
+            results.append({
+                'version': version.version,
+                'is_active': version.is_active,
+                'created_at': version.created_at,
+                'weights': version.weights,
+                'ndcg5': float(np.mean([m['ndcg5'] for m in query_metrics])),
+                'ndcg10': float(np.mean([m['ndcg10'] for m in query_metrics])),
+                'p5': float(np.mean([m['p5'] for m in query_metrics])),
+                'p10': float(np.mean([m['p10'] for m in query_metrics])),
+                'mrr': float(np.mean([m['mrr'] for m in query_metrics])),
+                'n_queries': len(query_metrics),
+            })
+    
+    # Sort by NDCG@10
+    results.sort(key=lambda x: x['ndcg10'], reverse=True)
+    
+    context = {
+        'results': results,
+        'days': days,
+        'total_versions': len(versions),
+    }
+    
+    return render(request, 'dashboard_adaptive/evaluate_versions.html', context)

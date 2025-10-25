@@ -7,6 +7,11 @@ urlpatterns = [
     # Home
     path('', views.home, name='home'),
     
+    # Training Dashboard (NEW)
+    path('entrenamiento/', views.training_dashboard, name='training_dashboard'),
+    path('entrenamiento/nueva-version/', views.train_new_version, name='train_new_version'),
+    path('entrenamiento/evaluar/', views.evaluate_versions, name='evaluate_versions'),
+    
     # Training & Dataset
     path('train/', views.train_weights, name='train'),
     path('dataset/', views.dataset_info, name='dataset'),

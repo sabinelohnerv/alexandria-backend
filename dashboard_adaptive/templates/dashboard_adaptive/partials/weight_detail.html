@@ -25,7 +25,7 @@
 <div class="px-6 py-4">
     <!-- Weights Visualization -->
     <div class="mb-6">
-        <h4 class="text-sm font-medium text-gray-900 mb-3">Signal Weights</h4>
+        <h4 class="text-sm font-medium text-gray-900 mb-3">Pesos de señales</h4>
         <div class="space-y-3">
             {% for item in weights_data %}
             <div>
@@ -43,7 +43,7 @@
 
     <!-- Notes -->
     <div class="mb-6">
-        <h4 class="text-sm font-medium text-gray-900 mb-2">Training Notes</h4>
+        <h4 class="text-sm font-medium text-gray-900 mb-2">Notas del entrenamiento</h4>
         <div class="bg-gray-50 rounded p-3 text-sm text-gray-700">
             {{ weight.notes }}
         </div>
@@ -51,7 +51,7 @@
 
     <!-- JSON Export -->
     <div>
-        <h4 class="text-sm font-medium text-gray-900 mb-2">Weights JSON</h4>
+        <h4 class="text-sm font-medium text-gray-900 mb-2">Pesos JSON</h4>
         <div class="relative">
             <pre class="bg-gray-900 text-gray-100 rounded p-3 text-xs overflow-x-auto">{{ weights_json }}</pre>
             <button onclick="copyWeightsJSON()"
@@ -71,13 +71,13 @@
         <input type="hidden" name="version" value="{{ weight.version }}">
         <button type="submit" 
                 class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700">
-            Activate This Version
+            Activar esta versión
         </button>
     </form>
     {% endif %}
     <button onclick="closeWeightDetail()" 
             class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded hover:bg-gray-300">
-        Close
+        Cerrar
     </button>
 </div>
 
