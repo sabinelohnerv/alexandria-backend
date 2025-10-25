@@ -53,12 +53,13 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <a href="{% url 'ranking_dashboard:evaluate' version.version %}" 
-                           class="text-blue-600 hover:underline">
+                           class="text-blue-600 hover:underline evaluate-link"
+                           data-version="{{ version.version }}">
                             Evaluar
                         </a>
                         {% if not version.is_active %}
                         <form method="post" action="{% url 'ranking_dashboard:activate' version.version %}" 
-                              class="inline" onsubmit="return confirm('¿Activar esta versión?');">
+                              class="inline activate-form" onsubmit="return confirm('¿Activar esta versión?');">
                             {% csrf_token %}
                             <button type="submit" class="text-green-600 hover:underline">
                                 Activar
@@ -90,4 +91,42 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+    // Loading animation for evaluate links
+    document.querySelectorAll('.evaluate-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = document.getElementById('loadingText');
+            const version = this.dataset.version;
+            text.textContent = `Evaluando versión ${version}... Calculando métricas.`;
+            overlay.classList.add('active');
+        });
+    });
+
+    // Loading animation for activate forms
+    document.querySelectorAll('.activate-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (confirm('¿Activar esta versión?')) {
+                const overlay = document.getElementById('loadingOverlay');
+                const text = document.getElementById('loadingText');
+                text.textContent = 'Activando versión...';
+                overlay.classList.add('active');
+            } else {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Loading animation for rollback
+    const rollbackForm = document.querySelector('form[action*="rollback"]');
+    if (rollbackForm) {
+        rollbackForm.addEventListener('submit', function(e) {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = document.getElementById('loadingText');
+            text.textContent = 'Realizando rollback a versión anterior...';
+            overlay.classList.add('active');
+        });
+    }
+</script>
 {% endblock %}

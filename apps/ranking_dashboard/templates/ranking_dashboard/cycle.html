@@ -50,7 +50,7 @@
             </div>
 
             <div class="flex space-x-3">
-                <button type="submit" class="flex-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-900 font-medium">
+                <button type="submit" id="cycleButton" class="flex-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-900 font-medium">
                     Ejecutar Ciclo Completo
                 </button>
                 <a href="{% url 'ranking_dashboard:home' %}" class="flex-1 text-center bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 font-medium">
@@ -60,4 +60,13 @@
         </form>
     </div>
 </div>
+
+<script>
+    document.getElementById('cycleButton').closest('form').addEventListener('submit', function(e) {
+        const overlay = document.getElementById('loadingOverlay');
+        const text = document.getElementById('loadingText');
+        text.textContent = 'Ejecutando ciclo completo: entrenar → evaluar → activar. Esto puede tardar varios minutos.';
+        overlay.classList.add('active');
+    });
+</script>
 {% endblock %}

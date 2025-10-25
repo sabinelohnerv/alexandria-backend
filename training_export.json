@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "export_timestamp": "2025-10-25T23:31:19.001029+00:00",
+    "window_days": 30,
+    "include_raw_data": false
+  },
+  "dataset": {
+    "n_queries": 335,
+    "n_pairs": 126,
+    "dimension": 4,
+    "Xdiff_shape": [
+      126,
+      4
+    ],
+    "y_shape": [
+      126
+    ]
+  },
+  "versions": [
+    {
+      "version": "w_20251025_232615",
+      "weights": [
+        0.18389372607298504,
+        0.03824066727869844,
+        0.18389372607298504,
+        0.6431455482505294
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T23:26:15.906174+00:00",
+      "notes": "pairwise training: days=30 pairs=126 l2=0.2 steps=800"
+    },
+    {
+      "version": "w_20251025_232345",
+      "weights": [
+        0.18389372607298504,
+        0.03824066727869844,
+        0.18389372607298504,
+        0.6431455482505294
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T23:23:45.498190+00:00",
+      "notes": "pairwise training: days=30 pairs=126 l2=0.2 steps=800"
+    },
+    {
+      "version": "historical_20251025_151516",
+      "weights": [
+        0.18389372607298504,
+        0.07648133455739688,
+        0.18389372607298504,
+        0.42876369883368626
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T15:15:16.273785+00:00",
+      "notes": "Historical data: last 60 days, higher l2 for stability\nConfig: lr=0.005 steps=800 l2=0.25 days=60\nMetrics: acc=0.2381 loss=0.6885 pairs=126"
+    },
+    {
+      "version": "recent_only_20251025_151406",
+      "weights": [
+        0.18389372607298504,
+        0.07648133455739688,
+        0.18389372607298504,
+        0.42876369883368626
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T15:14:06.541950+00:00",
+      "notes": "Recent data: only last 7 days\nConfig: lr=0.005 steps=800 l2=0.2 days=7\nMetrics: acc=0.2381 loss=0.6885 pairs=126"
+    },
+    {
+      "version": "long_training_20251025_151301",
+      "weights": [
+        0.18389372607298504,
+        0.07648133455739688,
+        0.18389372607298504,
+        0.42876369883368626
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T15:13:01.733609+00:00",
+      "notes": "Long training: many steps, moderate settings\nConfig: lr=0.003 steps=2000 l2=0.15 days=30\nMetrics: acc=0.2381 loss=0.6885 pairs=126"
+    },
+    {
+      "version": "aggressive_20251025_151151",
+      "weights": [
+        0.18389372607298504,
+        0.045888800734438136,
+        0.18389372607298504,
+        0.48593219201151105
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T15:11:51.211019+00:00",
+      "notes": "Aggressive training: high lr, low l2, loose clip\nConfig: lr=0.01 steps=1200 l2=0.1 days=30\nMetrics: acc=0.2381 loss=0.6880 pairs=126"
+    },
+    {
+      "version": "balanced_20251025_151041",
+      "weights": [
+        0.18389372607298504,
+        0.07648133455739688,
+        0.18389372607298504,
+        0.42876369883368626
+      ],
+      "is_active": true,
+      "created_at": "2025-10-25T15:10:41.231110+00:00",
+      "notes": "Balanced training: medium lr, medium l2, moderate clip\nConfig: lr=0.005 steps=800 l2=0.2 days=30\nMetrics: acc=0.2381 loss=0.6885 pairs=126"
+    },
+    {
+      "version": "conservative_20251025_150930",
+      "weights": [
+        0.18389372607298504,
+        0.10707386838035562,
+        0.18389372607298504,
+        0.3715952056558614
+      ],
+      "is_active": false,
+      "created_at": "2025-10-25T15:09:30.479969+00:00",
+      "notes": "Conservative training: low lr, high l2, tight clip\nConfig: lr=0.001 steps=1000 l2=0.3 days=30\nMetrics: acc=0.2381 loss=0.6890 pairs=126"
+    },
+    {
+      "version": "w_scratch_20251024_231555",
+      "weights": [
+        0.18389372607298504,
+        0.15296266911479375,
+        0.18389372607298504,
+        0.28584246588912415
+      ],
+      "is_active": false,
+      "created_at": "2025-10-24T23:15:55.665897+00:00",
+      "notes": "from_scratch training: pairs=122 lr=0.01 steps=2000 l2=0.05 init=0.5"
+    }
+  ],
+  "statistics": {
+    "decisions": {
+      "total": 1340,
+      "by_position": {
+        "1": 335,
+        "2": 335,
+        "3": 335,
+        "4": 335,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 0,
+        "10": 0
+      },
+      "by_version": {
+        "active": 1320,
+        "w_20251024_231229": 12,
+        "w_20251024_221639": 4,
+        "shadow:w_20251024_231229": 4
+      }
+    },
+    "feedback": {
+      "total": 189,
+      "useful": 102,
+      "not_useful": 87,
+      "useful_rate": 0.5396825396825397
+    }
+  }
+}
