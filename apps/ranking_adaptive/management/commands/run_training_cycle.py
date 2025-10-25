@@ -88,7 +88,7 @@ class Command(BaseCommand):
             "3/5",
             f"Evaluando versión {version_name}",
             "evaluate_ranking_model",
-            version=version_name,
+            model_version=version_name,
             days=eval_days,
             compare=True
         )

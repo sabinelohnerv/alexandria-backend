@@ -13,8 +13,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--version",
+            "--model-version",
             type=str,
+            dest="version",
             help="Versión específica a evaluar (si no se especifica, usa la activa)",
         )
         parser.add_argument(

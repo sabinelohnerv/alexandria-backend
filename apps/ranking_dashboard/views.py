@@ -101,7 +101,7 @@ def evaluate_version(request, version):
         output = StringIO()
         call_command(
             'evaluate_ranking_model',
-            version=version,
+            model_version=version,
             days=7,
             compare=True,
             stdout=output
