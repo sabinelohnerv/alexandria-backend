@@ -7,6 +7,7 @@ def healthz(_): return HttpResponse("ok")
 urlpatterns = [
     path("healthz", healthz),
     path("admin/", admin.site.urls),
+    path("ranking/", include("apps.ranking_dashboard.urls")),
     path("api/", include("apps.staff_whitelist.urls")),
     path("api/auth/", include("apps.accounts_signup.urls")),
     path("api/auth/", include("apps.accounts_auth.urls")),

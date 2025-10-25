@@ -1,0 +1,63 @@
+{% extends 'ranking_dashboard/base.html' %}
+
+{% block title %}Ciclo Completo - Ranking Adaptativo{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-900">Ciclo Completo de Entrenamiento</h2>
+        <p class="text-gray-600 mt-1">Ejecuta el pipeline completo: entrenar, evaluar y activar</p>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            <div>
+                <label for="days" class="block text-sm font-medium text-gray-700 mb-1">
+                    Ventana de Datos (días)
+                </label>
+                <input type="number" id="days" name="days" value="30" min="1" max="365"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                <p class="text-xs text-gray-500 mt-1">Días de feedback histórico para entrenamiento</p>
+            </div>
+
+            <div class="flex items-start">
+                <input type="checkbox" id="auto_activate" name="auto_activate" 
+                    class="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary">
+                <label for="auto_activate" class="ml-2 block text-sm text-gray-700">
+                    <span class="font-medium">Activar automáticamente</span>
+                    <p class="text-xs text-gray-500 mt-1">Si está marcado, la nueva versión se activará sin revisión manual</p>
+                </label>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <h4 class="text-sm font-medium text-yellow-900 mb-2">Advertencia</h4>
+                <p class="text-xs text-yellow-800">
+                    El ciclo completo ejecutará: listar versiones → entrenar → evaluar → activar (opcional).
+                    Este proceso puede tardar varios minutos. Se recomienda revisar la evaluación antes de activar.
+                </p>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <h4 class="text-sm font-medium text-blue-900 mb-2">Pipeline del Ciclo</h4>
+                <ol class="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                    <li>Listar versiones actuales</li>
+                    <li>Entrenar nueva versión con datos históricos</li>
+                    <li>Evaluar rendimiento y comparar con versión anterior</li>
+                    <li>Activar nueva versión (si auto-activación está habilitada)</li>
+                </ol>
+            </div>
+
+            <div class="flex space-x-3">
+                <button type="submit" class="flex-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-900 font-medium">
+                    Ejecutar Ciclo Completo
+                </button>
+                <a href="{% url 'ranking_dashboard:home' %}" class="flex-1 text-center bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 font-medium">
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ranking Dashboard{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#023f66',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-primary text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold">Ranking Adaptativo</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{% url 'ranking_dashboard:home' %}" class="hover:bg-blue-900 px-3 py-2 rounded">Dashboard</a>
+                    <a href="{% url 'ranking_dashboard:versions' %}" class="hover:bg-blue-900 px-3 py-2 rounded">Versiones</a>
+                    <a href="{% url 'ranking_dashboard:train' %}" class="hover:bg-blue-900 px-3 py-2 rounded">Entrenar</a>
+                    <a href="{% url 'ranking_dashboard:cycle' %}" class="hover:bg-blue-900 px-3 py-2 rounded">Ciclo Completo</a>
+                    <span class="text-sm">{{ user.username }}</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                    <div class="{% if message.tags == 'success' %}bg-green-100 border-green-400 text-green-700{% elif message.tags == 'error' %}bg-red-100 border-red-400 text-red-700{% else %}bg-yellow-100 border-yellow-400 text-yellow-700{% endif %} border px-4 py-3 rounded mb-2">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

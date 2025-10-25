@@ -1,0 +1,93 @@
+{% extends 'ranking_dashboard/base.html' %}
+
+{% block title %}Versiones - Ranking Adaptativo{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">Gestión de Versiones</h2>
+            <p class="text-gray-600 mt-1">Administra las versiones de pesos de ranking</p>
+        </div>
+        <form method="post" action="{% url 'ranking_dashboard:rollback' %}" onsubmit="return confirm('¿Desactivar versión actual y activar la anterior?');">
+            {% csrf_token %}
+            <button type="submit" class="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium">
+                Rollback a Anterior
+            </button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Versión</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creada</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dimensión</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for version in versions %}
+                <tr class="{% if version.is_active %}bg-green-50{% endif %}">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ version.version }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if version.is_active %}
+                            <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">Activa</span>
+                        {% else %}
+                            <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">Inactiva</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ version.created_at|date:"Y-m-d H:i:s" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ version.weights|length }} señales
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                        {{ version.notes|default:"Sin notas" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <a href="{% url 'ranking_dashboard:evaluate' version.version %}" 
+                           class="text-blue-600 hover:underline">
+                            Evaluar
+                        </a>
+                        {% if not version.is_active %}
+                        <form method="post" action="{% url 'ranking_dashboard:activate' version.version %}" 
+                              class="inline" onsubmit="return confirm('¿Activar esta versión?');">
+                            {% csrf_token %}
+                            <button type="submit" class="text-green-600 hover:underline">
+                                Activar
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                        No hay versiones disponibles. 
+                        <a href="{% url 'ranking_dashboard:train' %}" class="text-blue-600 hover:underline">Entrenar primera versión</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if versions %}
+    <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+        <h4 class="text-sm font-medium text-blue-900 mb-2">Información sobre Versiones</h4>
+        <ul class="text-xs text-blue-800 space-y-1">
+            <li>Solo puede haber una versión activa a la vez</li>
+            <li>Evalúa una versión antes de activarla en producción</li>
+            <li>Usa "Rollback" para volver rápidamente a la versión anterior</li>
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

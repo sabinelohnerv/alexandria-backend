@@ -57,7 +57,8 @@ INSTALLED_APPS = [
     "apps.accounts_password",
     "apps.documents",
     "apps.search.apps.SearchConfig",
-    "apps.ranking_adaptive"
+    "apps.ranking_adaptive",
+    "apps.ranking_dashboard",
 ]
 
 MIDDLEWARE = [

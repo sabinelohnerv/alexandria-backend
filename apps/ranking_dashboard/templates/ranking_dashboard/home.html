@@ -1,0 +1,116 @@
+{% extends 'ranking_dashboard/base.html' %}
+
+{% block title %}Dashboard - Ranking Adaptativo{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900">Dashboard de Ranking Adaptativo</h2>
+        <p class="text-gray-600 mt-1">Gestión del sistema de aprendizaje de ranking</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Versión Activa</h3>
+            {% if active_version %}
+                <p class="text-2xl font-bold text-primary">{{ active_version.version }}</p>
+                <p class="text-sm text-gray-500 mt-1">{{ active_version.created_at|date:"Y-m-d H:i" }}</p>
+            {% else %}
+                <p class="text-gray-500">Sin versión activa</p>
+            {% endif %}
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Versiones</h3>
+            <p class="text-2xl font-bold text-primary">{{ total_versions }}</p>
+            <a href="{% url 'ranking_dashboard:versions' %}" class="text-sm text-blue-600 hover:underline mt-1 inline-block">Ver todas</a>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Estado</h3>
+            {% if active_version %}
+                <span class="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Operativo</span>
+            {% else %}
+                <span class="inline-block px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">Sin modelo activo</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Acciones Rápidas</h3>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="{% url 'ranking_dashboard:train' %}" class="block p-4 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-gray-50 transition">
+                <h4 class="font-semibold text-gray-900">Entrenar Nueva Versión</h4>
+                <p class="text-sm text-gray-600 mt-1">Entrena pesos usando feedback histórico</p>
+            </a>
+
+            <a href="{% url 'ranking_dashboard:cycle' %}" class="block p-4 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-gray-50 transition">
+                <h4 class="font-semibold text-gray-900">Ciclo Completo</h4>
+                <p class="text-sm text-gray-600 mt-1">Entrenar, evaluar y activar automáticamente</p>
+            </a>
+
+            <a href="{% url 'ranking_dashboard:versions' %}" class="block p-4 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-gray-50 transition">
+                <h4 class="font-semibold text-gray-900">Gestionar Versiones</h4>
+                <p class="text-sm text-gray-600 mt-1">Ver, evaluar y activar versiones</p>
+            </a>
+
+            <a href="{% url 'ranking_dashboard:export' %}" class="block p-4 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-gray-50 transition">
+                <h4 class="font-semibold text-gray-900">Exportar Datos</h4>
+                <p class="text-sm text-gray-600 mt-1">Exportar datos de entrenamiento para análisis</p>
+            </a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Versiones Recientes</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Versión</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creada</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dimensión</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for version in versions %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {{ version.version }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if version.is_active %}
+                                <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">Activa</span>
+                            {% else %}
+                                <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded">Inactiva</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ version.created_at|date:"Y-m-d H:i" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ version.weights|length }} señales
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <a href="{% url 'ranking_dashboard:evaluate' version.version %}" class="text-blue-600 hover:underline">Evaluar</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                            No hay versiones disponibles
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
