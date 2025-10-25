@@ -1,0 +1,25 @@
+<div class="p-3 bg-gray-50 rounded border border-gray-200">
+    <dl class="grid grid-cols-2 gap-2 text-xs">
+        <div>
+            <dt class="text-gray-500">Pairs</dt>
+            <dd class="font-semibold text-gray-900">{{ n_pairs }}</dd>
+        </div>
+        <div>
+            <dt class="text-gray-500">Queries</dt>
+            <dd class="font-semibold text-gray-900">{{ n_queries }}</dd>
+        </div>
+        <div>
+            <dt class="text-gray-500">Dimension</dt>
+            <dd class="font-semibold text-gray-900">{{ dim }}</dd>
+        </div>
+        <div>
+            <dt class="text-gray-500">Shape</dt>
+            <dd class="font-semibold text-gray-900">{{ shape }}</dd>
+        </div>
+    </dl>
+    {% if n_pairs < 30 %}
+    <p class="mt-2 text-xs text-amber-600">⚠️ Low pair count (< 30)</p>
+    {% elif n_pairs >= 100 %}
+    <p class="mt-2 text-xs text-green-600">✓ Good dataset (100+ pairs)</p>
+    {% endif %}
+</div>

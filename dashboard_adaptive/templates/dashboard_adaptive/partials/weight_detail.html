@@ -1,0 +1,91 @@
+<!-- htmlhint-disable -->
+<div class="px-6 py-4 border-b border-gray-200">
+    <div class="flex items-center justify-between">
+        <h3 class="text-lg font-medium text-gray-900">{{ weight.version }}</h3>
+        <button onclick="closeWeightDetail()" class="text-gray-400 hover:text-gray-500">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    <div class="mt-2 flex items-center space-x-4">
+        {% if weight.is_active %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            ✓ Active
+        </span>
+        {% else %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            Inactive
+        </span>
+        {% endif %}
+        <span class="text-sm text-gray-500">{{ weight.created_at|date:"Y-m-d H:i:s" }}</span>
+    </div>
+</div>
+
+<div class="px-6 py-4">
+    <!-- Weights Visualization -->
+    <div class="mb-6">
+        <h4 class="text-sm font-medium text-gray-900 mb-3">Signal Weights</h4>
+        <div class="space-y-3">
+            {% for item in weights_data %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">[{{ item.index }}] {{ item.signal }}</span>
+                    <span class="text-sm font-mono text-gray-900">{{ item.weight|floatformat:4 }}</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bar-chart h-2" style="width: {{ item.bar_width }}px; max-width: 100%;"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="mb-6">
+        <h4 class="text-sm font-medium text-gray-900 mb-2">Training Notes</h4>
+        <div class="bg-gray-50 rounded p-3 text-sm text-gray-700">
+            {{ weight.notes }}
+        </div>
+    </div>
+
+    <!-- JSON Export -->
+    <div>
+        <h4 class="text-sm font-medium text-gray-900 mb-2">Weights JSON</h4>
+        <div class="relative">
+            <pre class="bg-gray-900 text-gray-100 rounded p-3 text-xs overflow-x-auto">{{ weights_json }}</pre>
+            <button onclick="copyWeightsJSON()"
+                    class="absolute top-2 right-2 px-2 py-1 bg-gray-700 text-white text-xs rounded hover:bg-gray-600">
+                Copy
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-2">
+    {% if not weight.is_active %}
+    <form hx-post="{% url 'dashboard_adaptive:promote_weight' %}"
+          hx-swap="none"
+          onsubmit="setTimeout(() => location.reload(), 500)">
+        {% csrf_token %}
+        <input type="hidden" name="version" value="{{ weight.version }}">
+        <button type="submit" 
+                class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700">
+            Activate This Version
+        </button>
+    </form>
+    {% endif %}
+    <button onclick="closeWeightDetail()" 
+            class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded hover:bg-gray-300">
+        Close
+    </button>
+</div>
+
+<script>
+function copyWeightsJSON() {
+    const jsonText = `{{ weights_json|escapejs }}`;
+    navigator.clipboard.writeText(jsonText).then(() => {
+        showToast('Copied to clipboard!', 'success');
+    });
+}
+</script>

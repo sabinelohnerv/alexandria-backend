@@ -1,0 +1,47 @@
+<tr id="weight-row-{{ weight.version }}">
+    <td class="px-6 py-4 whitespace-nowrap">
+        <div class="text-sm font-medium text-gray-900">{{ weight.version }}</div>
+    </td>
+    <td class="px-6 py-4 whitespace-nowrap">
+        {% if weight.is_active %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            ✓ Active
+        </span>
+        {% else %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            Inactive
+        </span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4">
+        <div class="text-xs text-gray-900 font-mono">
+            {{ weight.weights|length }} weights
+        </div>
+    </td>
+    <td class="px-6 py-4">
+        <div class="text-xs text-gray-500 max-w-xs truncate">
+            {{ weight.notes|truncatewords:10 }}
+        </div>
+    </td>
+    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        {{ weight.created_at|date:"Y-m-d H:i" }}
+    </td>
+    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+        <button onclick="showWeightDetail('{{ weight.version }}')"
+                class="text-blue-600 hover:text-blue-900">
+            Detail
+        </button>
+        {% if not weight.is_active %}
+        <form hx-post="{% url 'dashboard_adaptive:promote_weight' %}"
+              hx-target="#weight-row-{{ weight.version }}"
+              hx-swap="outerHTML"
+              class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="version" value="{{ weight.version }}">
+            <button type="submit" class="text-green-600 hover:text-green-900">
+                Promote
+            </button>
+        </form>
+        {% endif %}
+    </td>
+</tr>

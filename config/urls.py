@@ -12,5 +12,6 @@ urlpatterns = [
     path("api/auth/", include("apps.accounts_auth.urls")),
     path("api/auth/", include("apps.accounts_password.urls")),
     path("api/search/", include("apps.search.urls")),
+    path("dashboard/adaptive/", include("dashboard_adaptive.urls")),
 ]
 
