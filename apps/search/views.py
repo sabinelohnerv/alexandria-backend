@@ -17,6 +17,7 @@ from .serializers import (
     FeedbackSerializer,
 )
 from .services import ask as ask_service
+from .services.guards import check_query_guards, QueryGuardException
 from .throttles import BurstRateThrottle, SustainedRateThrottle
 from common.services.minio_storage import presign_get_url
 
@@ -153,6 +154,15 @@ class AskView(APIView):
         s = AskRequestSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         data = s.validated_data
+
+        # Validar que la consulta sea jurídica y no demasiado vaga
+        try:
+            check_query_guards(data["query"])
+        except QueryGuardException as e:
+            return Response(
+                {"detail": e.message, "code": e.code},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         session = None
         if "session_id" in data and data["session_id"]:
