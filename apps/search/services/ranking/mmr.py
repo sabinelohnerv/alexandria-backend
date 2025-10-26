@@ -24,7 +24,7 @@ def mmr_select(candidates: List[Tuple[Chunk, float, Dict[str, float]]],
     for _ in range(min(k, len(pool))):
         best_i, best_val = None, -1e9
         for i in pool:
-            rel = cos(embs[i], qvec)  # relevancia al query
+            rel = cos(embs[i], qvec)  
             div = 0.0
             if selected:
                 div = max(cos(embs[i], embs[j]) for j in selected)  # similitud con los ya elegidos

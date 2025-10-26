@@ -207,7 +207,7 @@ def combine_final_score(s_ce: float, signals: Dict[str, Any]) -> float:
     )
 
 def combine_final_score_vector(s_ce: float, signals: Dict[str, Any]) -> float:
-    from .adaptive import get_active_signal_weights, get_alpha_ce  # import tardío, evita ciclos
+    from .adaptive import get_active_signal_weights, get_alpha_ce  
     w = get_active_signal_weights()     # [w_vig, w_org, w_id, w_rec]
     alpha = get_alpha_ce()
     x = signals_to_vector(signals)      # [vig, org, id, rec]

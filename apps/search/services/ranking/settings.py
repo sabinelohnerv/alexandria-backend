@@ -27,7 +27,7 @@ DEFAULTS = {
     "RERANK_BATCH_SIZE": 16,     
     "ENABLE_RERANK": True,
     "ENABLE_MMR": True,          
-    "MMR_K": 4,                  
+    "MMR_K": 6,                  
     "MMR_LAMBDA": 0.7,
     "LLM_PROVIDER": "together",
     "TOGETHER_MODEL": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",

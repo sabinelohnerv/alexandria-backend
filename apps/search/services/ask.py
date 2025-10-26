@@ -20,27 +20,11 @@ from .generation.synthesis import synthesize_answer
 def _ms(since: float) -> int:
     return int((time.perf_counter() - since) * 1000)
 
-def _assign_bucket(query_id: int) -> str:
-    h = query_id % 10
-    if h == 0:  # 10% shadow
-        return "shadow"
-    if h in (1, 2):  # 20% treatment
-        return "treatment"
-    return "control"
-
-def _get_candidate_weights_or_none():
-    """Devuelve (version, weights) de la última versión INACTIVA, o (None, None)."""
-    try:
-        from apps.ranking_adaptive.models import RankingWeights
-        cand = RankingWeights.objects.filter(is_active=False).order_by('-created_at').first()
-        return (cand.version, cand.weights) if cand else (None, None)
-    except Exception:
-        return (None, None)
 
 def _score_with_weights(s_ce: float, signals: Dict[str, Any],
                         w: Sequence[float], alpha: float) -> float:
-    x = signals_to_vector(signals)  # en el orden SIGNAL_ORDER
-    # todas las señales se asumen en [0,1], s_ce ya viene NORMALIZADO desde rerank_hits
+    x = signals_to_vector(signals)  # orden SIGNAL_ORDER
+    # s_ce ya viene normalizado del reranker; señales en [0,1]
     return alpha * float(s_ce) + sum((wi or 0.0) * xi for wi, xi in zip(w, x))
 
 
@@ -48,46 +32,25 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     """
     Flujo:
       1) retrieve (vec + lex, en paralelo) -> RRF (C=FUSION_CANDIDATES)
-      2) rerank (cross-encoder TEI) sobre C (devuelve s_ce NORMALIZADO y ce_raw)
-      3) combinar señales jurídicas con pesos (A/B) -> ordenar -> TOP_N
-      4) (opcional) MMR sobre TOP_N para diversidad visual
+      2) rerank (cross-encoder) sobre C (devuelve s_ce normalizado)
+      3) combinar señales con PESOS ACTIVOS -> ordenar -> TOP_N
+      4) (opcional) MMR sobre TOP_N para diversidad
       5) síntesis + persistencia
     """
     t0 = time.perf_counter()
     perf: List[str] = []
 
+    # 0) Sesión y mensaje del usuario
     if session is None:
         title = (query[:80] + "…") if len(query) > 80 else query
         session = ChatSession.objects.create(user=user, title=title)
-
     ChatMessage.objects.create(session=session, role=ChatMessage.ROLE_USER, text=query)
 
-    # -------- A/B: bucket y selección de pesos --------
-    bucket = _assign_bucket((session.id or 0))
-    alpha = get_alpha_ce()  # peso de CE dentro de la fórmula
+    # === Pesos activos y alpha (sin A/B) ===
+    alpha = get_alpha_ce()
     w_active = get_active_signal_weights()
-    w_to_use = w_active
     model_version_used = "active"
-
-    cand_version, cand_w = _get_candidate_weights_or_none()
-    if bucket == "treatment" and cand_w:
-        w_to_use = cand_w
-        model_version_used = cand_version or "candidate"
-
-    # Log de asignación de experimento (best-effort)
-    try:
-        from apps.ranking_adaptive.models import ExperimentAssignment
-        ExperimentAssignment.objects.update_or_create(
-            query_id=session.id,
-            defaults={
-                "bucket": bucket,
-                "weights_version": (
-                    (cand_version or "candidate") if bucket in ("treatment", "shadow") else "active"
-                ),
-            },
-        )
-    except Exception:
-        pass
+    experiment_bucket = "control"  # etiqueta fija para compatibilidad
 
     # -------- 1) RETRIEVE (paralelo) --------
     t_retrieve = time.perf_counter()
@@ -122,44 +85,37 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     retrieve_dur_ms = _ms(t_retrieve)
     perf.append(f"retrieve={retrieve_dur_ms}ms")
 
-    # -------- 2) RERANK (TEI) --------
+    # -------- 2) RERANK --------
     t_rerank = time.perf_counter()
 
     rerank_candidates = int(get_setting("RERANK_CANDIDATES", fusion_candidates))
+    # Espera tuplas: (ch, s_base, extra, s_ce_norm, s_final_rer, signals)
     reranked_full = rerank_hits(query, rrf_scored, top_n=rerank_candidates)
 
-    rerank_dur_ms = _ms(t_rerank)  # latencia real del endpoint CE
-    perf.append(f"tei_ms={rerank_dur_ms}ms")
+    rerank_dur_ms = _ms(t_rerank)
     perf.append(f"rerank={rerank_dur_ms}ms")
 
-    # -------- 3) Señales jurídicas + combinación (A/B) --------
+    # -------- 3) Señales + combinación con PESOS ACTIVOS --------
     combined: List[
-        Tuple[Chunk, float, Dict[str, float], Optional[float], float, Dict[str, Any], Optional[float]]
+        Tuple[Chunk, float, Dict[str, float], Optional[float], float, Dict[str, Any]]
     ] = []
 
     for tpl in reranked_full:
-        # Soporta tuplas del reranker: (ch, s_base, extra, s_ce_norm, s_final_rer, signals)
         ch, s_base, extra, s_ce_norm, _s_final_rer, signals = tpl
 
         # CE normalizado; fallback al score base si no hay CE
         if s_ce_norm is None:
-            # s_base es RRF; lo acotamos suavemente a [0,1] por seguridad visual
             ce_for_formula = float(max(0.0, min(1.0, s_base)))
         else:
             ce_for_formula = float(s_ce_norm)
 
-        if bucket == "shadow" and cand_w:
-            s_final_active = _score_with_weights(ce_for_formula, signals, w_active, alpha)
-            s_final_cand = _score_with_weights(ce_for_formula, signals, cand_w, alpha)
-            combined.append((ch, s_base, extra, s_ce_norm, s_final_active, signals, s_final_cand))
-        else:
-            s_final = _score_with_weights(ce_for_formula, signals, w_to_use, alpha)
-            combined.append((ch, s_base, extra, s_ce_norm, s_final, signals, None))
+        s_final = _score_with_weights(ce_for_formula, signals, w_active, alpha)
+        combined.append((ch, s_base, extra, s_ce_norm, s_final, signals))
 
-    # Ordenar: score final desc, desempate por base (RRF)
+    # Ordenar por score final (desc), desempate por RRF base
     combined.sort(key=lambda t: (t[4], t[1]), reverse=True)
 
-    # Mantener TOP_N para UI
+    # TOP_N para UI
     top_n = int(get_setting("RERANK_TOP_N", 12))
     top_for_ui = combined[:top_n]
 
@@ -170,27 +126,24 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     max_snippets = int(get_setting("MMR_K", 5))
     mmr_lambda = float(get_setting("MMR_LAMBDA", 0.7))
 
-    # Degradación suave si retrieve+rerank fueron lentos (usar tiempos REALES)
-    retrieve_ms = retrieve_dur_ms
-    rerank_ms = rerank_dur_ms
-
-    if retrieve_ms > 800 or rerank_ms > 1000:
-        top_for_ui   = top_for_ui[: max(6, min(len(top_for_ui), top_n // 2))]
+    # Degradación suave si retrieve+rerank fueron lentos
+    if retrieve_dur_ms > 800 or rerank_dur_ms > 1000:
+        top_for_ui = top_for_ui[: max(6, min(len(top_for_ui), top_n // 2))]
         max_snippets = max(3, min(max_snippets, 4))
 
     if use_mmr and top_for_ui:
         # MMR usa score final como base
-        mmr_in = [(ch, s_final, extra) for (ch, _s_base, extra, _s_ce, s_final, _signals, _s_shadow) in top_for_ui]
+        mmr_in = [(ch, s_final, extra) for (ch, _s_base, extra, _s_ce, s_final, _signals) in top_for_ui]
         mmr_selected = mmr_select(mmr_in, qvec, k=max_snippets, lambda_=mmr_lambda)
-        # Reinyectar estructuras originales preservando s_final y s_final_shadow
+        # Reinyectar estructuras originales
         id_map = {
-            ch.id: (s_base, extra, s_ce_norm, s_final, signals, s_shadow)
-            for (ch, s_base, extra, s_ce_norm, s_final, signals, s_shadow) in top_for_ui
+            ch.id: (s_base, extra, s_ce_norm, s_final, signals)
+            for (ch, s_base, extra, s_ce_norm, s_final, signals) in top_for_ui
         }
         final_hits = []
         for (ch, _score_base, _extra) in mmr_selected:
-            s_base, extra, s_ce_norm, s_final, signals, s_shadow = id_map[ch.id]
-            final_hits.append((ch, s_base, extra, s_ce_norm, s_final, signals, s_shadow))
+            s_base, extra, s_ce_norm, s_final, signals = id_map[ch.id]
+            final_hits.append((ch, s_base, extra, s_ce_norm, s_final, signals))
     else:
         final_hits = top_for_ui[:max_snippets]
 
@@ -200,10 +153,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     t_llm = time.perf_counter()
 
     # synthesis.py espera 6-tuplas: (ch, s_base, extra, s_ce, s_final, signals)
-    final_hits_for_synth = [
-        (ch, s_base, extra, s_ce_norm, s_final, signals)
-        for (ch, s_base, extra, s_ce_norm, s_final, signals, _s_shadow) in final_hits
-    ]
+    final_hits_for_synth = final_hits
     answer = synthesize_answer(query, final_hits_for_synth, max_snippets=max_snippets)
 
     perf.append(f"llm={_ms(t_llm)}ms")
@@ -222,39 +172,35 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
                 "weights": get_setting("RANK_WEIGHTS", {}),
                 "org_weights": get_setting("ORG_WEIGHTS", {}),
                 "perf": perf,
-                "experiment_bucket": bucket,
-                "weights_version_used": model_version_used,
-                # Nuevo: para trazabilidad de cómo se normalizó el CE
+                "experiment_bucket": experiment_bucket,   # fijo "control"
+                "weights_version_used": model_version_used,  # "active"
                 "rerank_score_mode": str(get_setting("RERANK_SCORE_MODE", "sigmoid_minmax")),
             },
             latency_ms=latency_ms,
         )
 
-        # Guardar todos los resultados combinados (lo que mostrará la UI)
+        # Guardar resultados mostrados
         hits: List[SearchHit] = []
-        for i, (ch, s_base, extra, s_ce_norm, s_final, signals, s_shadow) in enumerate(final_hits, start=1):
-            # Meta JSON: persistimos CE normalizado y CE bruto desde extra['ce_raw']
+        for i, (ch, s_base, extra, s_ce_norm, s_final, signals) in enumerate(final_hits, start=1):
             meta = {
                 "section": getattr(ch, "section", None),
                 "lex": float(extra.get("lex", 0.0)) if extra.get("lex") is not None else 0.0,
                 "base_rrf": float(s_base),
-                "rerank_ce": (float(s_ce_norm) if s_ce_norm is not None else None),  # NORMALIZADO
-                "rerank_ce_raw": (float(extra.get("ce_raw")) if extra.get("ce_raw") is not None else None),  # LOGIT
+                "rerank_ce": (float(s_ce_norm) if s_ce_norm is not None else None),   # CE normalizado
+                "rerank_ce_raw": (float(extra.get("ce_raw")) if extra.get("ce_raw") is not None else None),
                 "final_score": float(s_final) if (s_final is not None) else 0.0,
-                "final_score_shadow": (float(s_shadow) if s_shadow is not None else None),
                 "signals": {
                     "vigente": bool(signals.get("vigente")),
                     "peso_org": float(signals.get("peso_org", 0.0)),
                     "match_id": bool(signals.get("match_id")),
                     "recencia": float(signals.get("recencia", 0.0)),
                 },
-                "experiment_bucket": bucket,
+                "experiment_bucket": experiment_bucket,
                 "weights_version_used": model_version_used,
             }
 
-            # Sanea final_score, por si acaso (evitar NaN/Inf)
+            # Sanea final_score ante NaN
             try:
-                # check NaN: (x != x) es True sólo para NaN
                 if meta["final_score"] != meta["final_score"]:
                     meta["final_score"] = 0.0
             except Exception:
@@ -270,7 +216,6 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
                 meta_json=meta,
             )
             if hasattr(SearchHit, "score_rerank"):
-                # compatibilidad: si existe columna, persistimos CE normalizado
                 kwargs["score_rerank"] = (float(s_ce_norm) if s_ce_norm is not None else None)
             if hasattr(SearchHit, "score_lexical") and extra.get("lex") is not None:
                 kwargs["score_lexical"] = float(extra.get("lex", 0.0))
@@ -278,7 +223,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
             hits.append(SearchHit(**kwargs))
         SearchHit.objects.bulk_create(hits, batch_size=500)
 
-        # ===== Logging de decisiones para adaptive =====
+        # Logging de decisiones (modo control-only)
         try:
             from apps.ranking_adaptive.models import RankingDecision
         except Exception:
@@ -286,19 +231,14 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
 
         if RankingDecision is not None:
             decisions = []
-            for shown_pos, (ch, s_base, _extra, s_ce_norm, s_final, signals, _s_shadow) in enumerate(final_hits, start=1):
+            for shown_pos, (ch, _s_base, _extra, s_ce_norm, _s_final, signals) in enumerate(final_hits, start=1):
                 rb = rank_before_map.get(ch.id, shown_pos)
                 sig_vec = signals_to_vector(signals)
-                mv = (
-                    (f"shadow:{cand_version or 'candidate'}")
-                    if bucket == "shadow" and cand_version
-                    else model_version_used
-                )
                 decisions.append(RankingDecision(
                     query_id=msg.id,
                     message_id=msg.id,
                     hit_id=ch.id,
-                    model_version=mv,
+                    model_version=model_version_used,  # "active"
                     score_ce=(float(s_ce_norm) if s_ce_norm is not None else 0.0),
                     rank_before=rb,
                     rank_after=shown_pos,
