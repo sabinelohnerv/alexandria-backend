@@ -6,6 +6,8 @@ from rest_framework.decorators import action
 from django.db.models import Count, Q, Subquery, OuterRef, CharField
 from django.db.models.functions import Cast
 from django.utils.text import slugify
+from django.db import DatabaseError, OperationalError
+import logging
 
 from .models import ChatSession, ChatMessage, SearchHit, Feedback
 from .serializers import (
@@ -20,6 +22,8 @@ from .services import ask as ask_service
 from .services.guards import check_query_guards, QueryGuardException
 from .throttles import BurstRateThrottle, SustainedRateThrottle
 from common.services.minio_storage import presign_get_url
+
+logger = logging.getLogger(__name__)
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
@@ -170,6 +174,12 @@ class AskView(APIView):
                 session = ChatSession.objects.get(pk=data["session_id"])
             except ChatSession.DoesNotExist:
                 return Response({"detail": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
+            except (DatabaseError, OperationalError) as e:
+                logger.error(f"Database error retrieving session: {e}", exc_info=True)
+                return Response(
+                    {"detail": "Error de base de datos. Por favor, intenta nuevamente.", "code": "database_error"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
 
             if not (request.user.is_staff or request.user.is_superuser):
                 if session.user_id != request.user.id:
@@ -178,9 +188,51 @@ class AskView(APIView):
             if session.deleted_at is not None:
                 return Response({"detail": "Session was deleted"}, status=status.HTTP_410_GONE)
 
-        msg, hits = ask_service(request.user, data["query"], session=session)
-        out = AskResponseSerializer({"message": msg, "hits": hits})
-        return Response(out.data, status=200)
+        # Intentar generar respuesta con manejo de errores completo
+        try:
+            msg, hits = ask_service(request.user, data["query"], session=session)
+            out = AskResponseSerializer({"message": msg, "hits": hits})
+            return Response(out.data, status=200)
+        
+        except (DatabaseError, OperationalError) as e:
+            logger.error(f"Database error during ask_service: {e}", exc_info=True)
+            return Response(
+                {
+                    "detail": "Error de base de datos al procesar tu consulta. Por favor, intenta nuevamente.",
+                    "code": "database_error"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        except ConnectionError as e:
+            logger.error(f"Connection error during ask_service: {e}", exc_info=True)
+            return Response(
+                {
+                    "detail": "Error de conexión con los servicios externos. Por favor, intenta nuevamente.",
+                    "code": "connection_error"
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        
+        except TimeoutError as e:
+            logger.error(f"Timeout error during ask_service: {e}", exc_info=True)
+            return Response(
+                {
+                    "detail": "La solicitud tardó demasiado tiempo. Por favor, intenta con una consulta más específica.",
+                    "code": "timeout_error"
+                },
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error during ask_service: {e}", exc_info=True)
+            return Response(
+                {
+                    "detail": "Ocurrió un error inesperado al procesar tu consulta. Por favor, intenta nuevamente.",
+                    "code": "internal_error"
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class FeedbackView(APIView):
     permission_classes = [permissions.IsAuthenticated]
