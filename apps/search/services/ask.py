@@ -38,9 +38,12 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
       5) síntesis + persistencia
     """
     t0 = time.perf_counter()
-    perf: List[str] = []
+    
+    # Diccionario para almacenar tiempos de cada fase
+    timings = {}
 
     # 0) Sesión y mensaje del usuario
+    t_setup = time.perf_counter()
     if session is None:
         title = (query[:80] + "…") if len(query) > 80 else query
         session = ChatSession.objects.create(user=user, title=title)
@@ -51,6 +54,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     w_active = get_active_signal_weights()
     model_version_used = "active"
     experiment_bucket = "control"  # etiqueta fija para compatibilidad
+    timings["setup_ms"] = _ms(t_setup)
 
     # -------- 1) RETRIEVE (paralelo) --------
     t_retrieve = time.perf_counter()
@@ -62,28 +66,25 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     # Embedding de consulta
     t_emb = time.perf_counter()
     qvec = encode_query(query)
-    perf.append(f"embed_q={_ms(t_emb)}ms")
+    timings["embedding_ms"] = _ms(t_emb)
 
     # Ejecutar vec + lex en paralelo
+    t_search = time.perf_counter()
     with ThreadPoolExecutor(max_workers=2) as ex:
-        t_vec = time.perf_counter()
         fut_vec = ex.submit(vector_search, qvec, search_top_k)
-        t_lex = time.perf_counter()
         fut_lex = ex.submit(lexical_search, query, search_top_k)
         vec_pairs = fut_vec.result()
         lex_pairs = fut_lex.result()
-    perf.append(f"vec_db={_ms(t_vec)}ms")
-    perf.append(f"lex_db={_ms(t_lex)}ms")
+    timings["search_ms"] = _ms(t_search)
 
     t_rrf = time.perf_counter()
     rrf_scored = rrf_fuse(vec_pairs, lex_pairs, k_rrf=rrf_k, limit=fusion_candidates)
-    perf.append(f"rrf_ms={_ms(t_rrf)}ms")
+    timings["rrf_fusion_ms"] = _ms(t_rrf)
 
     # rank_before según RRF (antes de CE y señales)
     rank_before_map = {ch.id: (idx + 1) for idx, (ch, _s, _e) in enumerate(rrf_scored)}
 
-    retrieve_dur_ms = _ms(t_retrieve)
-    perf.append(f"retrieve={retrieve_dur_ms}ms")
+    timings["retrieve_total_ms"] = _ms(t_retrieve)
 
     # -------- 2) RERANK --------
     t_rerank = time.perf_counter()
@@ -92,10 +93,10 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     # Espera tuplas: (ch, s_base, extra, s_ce_norm, s_final_rer, signals)
     reranked_full = rerank_hits(query, rrf_scored, top_n=rerank_candidates)
 
-    rerank_dur_ms = _ms(t_rerank)
-    perf.append(f"rerank={rerank_dur_ms}ms")
+    timings["rerank_ms"] = _ms(t_rerank)
 
     # -------- 3) Señales + combinación con PESOS ACTIVOS --------
+    t_signals = time.perf_counter()
     combined: List[
         Tuple[Chunk, float, Dict[str, float], Optional[float], float, Dict[str, Any]]
     ] = []
@@ -118,6 +119,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     # TOP_N para UI
     top_n = int(get_setting("RERANK_TOP_N", 12))
     top_for_ui = combined[:top_n]
+    timings["signals_scoring_ms"] = _ms(t_signals)
 
     # -------- 4) MMR (opcional) --------
     t_mmr = time.perf_counter()
@@ -127,7 +129,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     mmr_lambda = float(get_setting("MMR_LAMBDA", 0.7))
 
     # Degradación suave si retrieve+rerank fueron lentos
-    if retrieve_dur_ms > 800 or rerank_dur_ms > 1000:
+    if timings["retrieve_total_ms"] > 800 or timings["rerank_ms"] > 1000:
         top_for_ui = top_for_ui[: max(6, min(len(top_for_ui), top_n // 2))]
         max_snippets = max(3, min(max_snippets, 4))
 
@@ -147,7 +149,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     else:
         final_hits = top_for_ui[:max_snippets]
 
-    perf.append(f"mmr={_ms(t_mmr)}ms")
+    timings["mmr_ms"] = _ms(t_mmr)
 
     # -------- 5) Síntesis LLM --------
     t_llm = time.perf_counter()
@@ -156,11 +158,11 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
     final_hits_for_synth = final_hits
     answer = synthesize_answer(query, final_hits_for_synth, max_snippets=max_snippets)
 
-    perf.append(f"llm={_ms(t_llm)}ms")
-    latency_ms = _ms(t0)
-    perf.append(f"total={latency_ms}ms")
+    timings["llm_synthesis_ms"] = _ms(t_llm)
+    timings["total_ms"] = _ms(t0)
 
     # -------- Persistencia --------
+    t_persist = time.perf_counter()
     with transaction.atomic():
         msg = ChatMessage.objects.create(
             session=session,
@@ -171,12 +173,12 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
                 "enable_rerank": bool(get_setting("ENABLE_RERANK", True)),
                 "weights": get_setting("RANK_WEIGHTS", {}),
                 "org_weights": get_setting("ORG_WEIGHTS", {}),
-                "perf": perf,
+                "timings": timings,
                 "experiment_bucket": experiment_bucket,   # fijo "control"
                 "weights_version_used": model_version_used,  # "active"
                 "rerank_score_mode": str(get_setting("RERANK_SCORE_MODE", "sigmoid_minmax")),
             },
-            latency_ms=latency_ms,
+            latency_ms=timings["total_ms"],
         )
 
         # Guardar resultados mostrados
@@ -252,5 +254,7 @@ def ask(user, query: str, session: Optional[ChatSession] = None) -> Tuple[ChatMe
                     RankingDecision.objects.bulk_create(decisions, batch_size=500)
                 except IntegrityError:
                     pass
+    
+    timings["persistence_ms"] = _ms(t_persist)
 
     return msg, hits
