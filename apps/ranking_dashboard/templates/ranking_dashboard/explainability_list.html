@@ -1,0 +1,135 @@
+{% extends "ranking_dashboard/base.html" %}
+
+{% block title %}Explicabilidad - Mensajes{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>
+                <i class="bi bi-graph-up"></i> Análisis de Explicabilidad
+            </h2>
+            <p class="text-muted">Explora el proceso completo de cada consulta: desde la búsqueda hasta la generación de respuesta</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <label for="search" class="form-label">Buscar en respuestas</label>
+                    <input type="text" class="form-control" id="search" name="q" 
+                           value="{{ search_query }}" placeholder="Buscar texto...">
+                </div>
+                <div class="col-md-3">
+                    <label for="min_latency" class="form-label">Latencia mínima (ms)</label>
+                    <input type="number" class="form-control" id="min_latency" name="min_latency" 
+                           value="{{ min_latency }}" placeholder="ej: 1000">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <a href="{% url 'ranking_dashboard:explainability_list' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de mensajes -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Mensajes Recientes ({{ page_obj.paginator.count }} total)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Respuesta (preview)</th>
+                            <th>Latencia</th>
+                            <th>Hits</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for msg in page_obj %}
+                        <tr>
+                            <td><code>{{ msg.id }}</code></td>
+                            <td>{{ msg.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ msg.session.user.username }}</td>
+                            <td>
+                                <div style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ msg.text|truncatewords:15 }}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge {% if msg.latency_ms > 2000 %}bg-danger{% elif msg.latency_ms > 1000 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ msg.latency_ms }} ms
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ msg.hits.count }} hits
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'ranking_dashboard:explainability_detail' msg.id %}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Ver Detalles
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No se encontraron mensajes con los filtros aplicados
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Paginación -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer">
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if min_latency %}&min_latency={{ min_latency }}{% endif %}">Primera</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_latency %}&min_latency={{ min_latency }}{% endif %}">Anterior</a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_latency %}&min_latency={{ min_latency }}{% endif %}">Siguiente</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if min_latency %}&min_latency={{ min_latency }}{% endif %}">Última</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

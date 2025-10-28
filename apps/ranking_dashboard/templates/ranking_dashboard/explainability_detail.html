@@ -1,0 +1,425 @@
+{% extends "ranking_dashboard/base.html" %}
+
+{% block title %}Explicabilidad - Mensaje #{{ message.id }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Paleta de colores basada en #023f66 */
+    .bg-phase-1 { background-color: #6c757d !important; color: white !important; } /* Gris - Setup */
+    .bg-phase-2 { background-color: #023f66 !important; color: white !important; } /* Azul oscuro principal - Embedding */
+    .bg-phase-3 { background-color: #0d6efd !important; color: white !important; } /* Azul brillante - Search */
+    .bg-phase-4 { background-color: #0dcaf0 !important; color: #000 !important; } /* Cyan - RRF Fusion */
+    .bg-phase-5 { background-color: #198754 !important; color: white !important; } /* Verde - Retrieve Total */
+    .bg-phase-6 { background-color: #ffc107 !important; color: #000 !important; } /* Amarillo - Rerank */
+    .bg-phase-7 { background-color: #fd7e14 !important; color: white !important; } /* Naranja - Signals */
+    .bg-phase-8 { background-color: #6f42c1 !important; color: white !important; } /* Púrpura - MMR */
+    .bg-phase-9 { background-color: #dc3545 !important; color: white !important; } /* Rojo - LLM */
+    .bg-phase-10 { background-color: #212529 !important; color: white !important; } /* Negro - Persistence */
+    
+    .text-phase-1 { color: #6c757d !important; }
+    .text-phase-2 { color: #023f66 !important; }
+    .text-phase-3 { color: #0d6efd !important; }
+    .text-phase-4 { color: #0dcaf0 !important; }
+    .text-phase-5 { color: #198754 !important; }
+    .text-phase-6 { color: #ffc107 !important; }
+    .text-phase-7 { color: #fd7e14 !important; }
+    .text-phase-8 { color: #6f42c1 !important; }
+    .text-phase-9 { color: #dc3545 !important; }
+    .text-phase-10 { color: #212529 !important; }
+    
+    /* Estilos para barras de fase */
+    .phase-bar {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 500;
+        border-radius: 4px;
+        transition: all 0.3s;
+    }
+    .phase-bar:hover {
+        transform: scale(1.02);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    /* Badges de scores */
+    .score-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    /* Cambios de ranking */
+    .rank-change {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    .rank-up { color: #28a745; }
+    .rank-down { color: #dc3545; }
+    .rank-same { color: #6c757d; }
+    
+    /* Mejoras de tabla */
+    .table-hover tbody tr:hover {
+        background-color: rgba(0,0,0,0.03);
+    }
+    
+    /* Progress bars con mejor contraste */
+    .progress {
+        background-color: #e9ecef;
+        border-radius: 0.375rem;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
+    }
+    
+    .progress-bar {
+        transition: width 0.6s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'ranking_dashboard:home' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'ranking_dashboard:explainability_list' %}">Explicabilidad</a></li>
+                    <li class="breadcrumb-item active">Mensaje #{{ message.id }}</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-graph-up"></i> Explicabilidad del Mensaje #{{ message.id }}</h2>
+        </div>
+    </div>
+
+    <!-- Información del mensaje -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-chat-left-text"></i> Consulta del Usuario</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Usuario:</strong> {{ message.session.user.username }}</p>
+                    <p class="mb-2"><strong>Fecha:</strong> {{ message.created_at|date:"Y-m-d H:i:s" }}</p>
+                    <p class="mb-2"><strong>Sesión:</strong> #{{ message.session.id }}</p>
+                    <hr>
+                    <p class="mb-0"><strong>Query:</strong></p>
+                    <div class="alert alert-light mt-2">{{ query_text }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-speedometer2"></i> Métricas Generales</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h3 class="text-primary">{{ total_ms }}</h3>
+                            <small class="text-muted">ms totales</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 class="text-success">{{ hits|length }}</h3>
+                            <small class="text-muted">hits</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 class="text-info">{{ configuration.weights_version_used }}</h3>
+                            <small class="text-muted">versión</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visualización de Fases -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> Tiempos por Fase del Pipeline</h5>
+        </div>
+        <div class="card-body">
+            <!-- Barra de progreso visual mejorada -->
+            <div class="mb-4">
+                <h6 class="mb-3">Distribución del tiempo total: <strong>{{ total_ms }} ms</strong></h6>
+                <div class="progress" style="height: 50px; font-size: 0.75rem;">
+                    {% for phase in phases %}
+                    {% if phase.duration > 0 %}
+                    <div class="progress-bar {{ phase.color }}" 
+                         role="progressbar" 
+                         style="width: {{ phase.percentage }}%;"
+                         data-bs-toggle="tooltip" 
+                         data-bs-placement="top"
+                         title="{{ phase.name }}: {{ phase.duration }}ms ({{ phase.percentage|floatformat:1 }}%)">
+                        {% if phase.percentage > 5 %}
+                            <div class="text-center" style="line-height: 1.2; padding: 4px;">
+                                <strong>{{ phase.name }}</strong><br>
+                                <small>{{ phase.duration }}ms</small>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="mt-2 text-muted small">
+                    <i class="bi bi-info-circle"></i> Pasa el cursor sobre cada sección para ver detalles
+                </div>
+            </div>
+
+            <!-- Tabla detallada de fases -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">Fase</th>
+                            <th style="width: 35%;">Descripción</th>
+                            <th style="width: 12%;" class="text-end">Duración</th>
+                            <th style="width: 10%;" class="text-end">% Total</th>
+                            <th style="width: 18%;">Distribución</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for phase in phases %}
+                        <tr {% if phase.duration > 0 %}class="table-active"{% endif %}>
+                            <td class="text-muted">{{ forloop.counter }}</td>
+                            <td>
+                                <strong class="{{ phase.color|slice:'3:' }}">
+                                    <i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>
+                                    {{ phase.name }}
+                                </strong>
+                            </td>
+                            <td><small class="text-muted">{{ phase.description }}</small></td>
+                            <td class="text-end">
+                                {% if phase.duration > 0 %}
+                                <span class="badge {{ phase.color }} fs-6">{{ phase.duration }} ms</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if phase.duration > 0 %}
+                                <strong>{{ phase.percentage|floatformat:1 }}%</strong>
+                                {% else %}
+                                <span class="text-muted">0%</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if phase.duration > 0 %}
+                                <div class="progress" style="height: 24px;">
+                                    <div class="progress-bar {{ phase.color }}" 
+                                         role="progressbar" 
+                                         style="width: {{ phase.percentage }}%;"
+                                         aria-valuenow="{{ phase.percentage }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        {% if phase.percentage > 15 %}
+                                        <small>{{ phase.percentage|floatformat:0 }}%</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="progress" style="height: 24px;">
+                                    <div class="progress-bar bg-secondary" style="width: 1%;"></div>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3" class="text-end"><strong>TOTAL</strong></td>
+                            <td class="text-end"><span class="badge bg-dark fs-6">{{ total_ms }} ms</span></td>
+                            <td class="text-end"><strong>100%</strong></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Análisis de rendimiento -->
+            <div class="alert alert-info mt-3">
+                <h6 class="alert-heading"><i class="bi bi-speedometer2"></i> Análisis de Rendimiento</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Fase más lenta:</strong><br>
+                        {% with slowest=phases|dictsort:"duration"|last %}
+                        <span class="badge {{ slowest.color }}">{{ slowest.name }}</span> 
+                        <small>({{ slowest.duration }}ms, {{ slowest.percentage|floatformat:1 }}%)</small>
+                        {% endwith %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Recuperación:</strong><br>
+                        {% for phase in phases %}
+                            {% if phase.key == "retrieve_total_ms" %}
+                            <span class="badge {{ phase.color }}">{{ phase.duration }}ms</span>
+                            <small>({{ phase.percentage|floatformat:1 }}%)</small>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Generación LLM:</strong><br>
+                        {% for phase in phases %}
+                            {% if phase.key == "llm_synthesis_ms" %}
+                            <span class="badge {{ phase.color }}">{{ phase.duration }}ms</span>
+                            <small>({{ phase.percentage|floatformat:1 }}%)</small>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuración utilizada -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-gear"></i> Configuración del Sistema</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Rerank Habilitado:</strong> 
+                        <span class="badge {% if configuration.enable_rerank %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ configuration.enable_rerank|yesno:"Sí,No" }}
+                        </span>
+                    </p>
+                    <p><strong>Versión de Pesos:</strong> <code>{{ configuration.weights_version_used }}</code></p>
+                    <p><strong>Bucket de Experimento:</strong> <code>{{ configuration.experiment_bucket }}</code></p>
+                    <p><strong>Modo de Score Rerank:</strong> <code>{{ configuration.rerank_score_mode }}</code></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Pesos Activos:</strong></p>
+                    <pre class="bg-light p-2 rounded" style="max-height: 150px; overflow-y: auto;">{{ configuration.weights|safe }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados y Ranking -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning">
+            <h5 class="mb-0"><i class="bi bi-list-ol"></i> Resultados y Decisiones de Ranking</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Rank</th>
+                            <th>Documento</th>
+                            <th>Sección</th>
+                            <th>Score Vector</th>
+                            <th>Score Léxico</th>
+                            <th>RRF Base</th>
+                            <th>Rerank CE</th>
+                            <th>Score Final</th>
+                            <th>Señales</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for hit in hits %}
+                        <tr>
+                            <td><strong>#{{ hit.rank }}</strong></td>
+                            <td>
+                                <div style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ hit.document_title }}
+                                </div>
+                            </td>
+                            <td><small>{{ hit.section|default:"-" }}</small></td>
+                            <td><span class="score-badge bg-primary">{{ hit.scores.vector|floatformat:3 }}</span></td>
+                            <td><span class="score-badge bg-secondary">{{ hit.scores.lexical|floatformat:3 }}</span></td>
+                            <td><span class="score-badge bg-info">{{ hit.scores.base_rrf|floatformat:3 }}</span></td>
+                            <td>
+                                {% if hit.scores.rerank_ce %}
+                                <span class="score-badge bg-success">{{ hit.scores.rerank_ce|floatformat:3 }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="score-badge bg-danger">{{ hit.scores.final_score|floatformat:3 }}</span></td>
+                            <td>
+                                <small>
+                                    {% if hit.signals.vigente %}<span class="badge bg-success">Vigente</span>{% endif %}
+                                    {% if hit.signals.match_id %}<span class="badge bg-info">Match ID</span>{% endif %}
+                                    <span class="badge bg-secondary">Peso: {{ hit.signals.peso_org|floatformat:2 }}</span>
+                                </small>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decisiones de Ranking (si existen) -->
+    {% if decisions %}
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-shuffle"></i> Cambios en el Ranking</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Muestra cómo cambió la posición de cada resultado después del reranking y aplicación de señales.</p>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Hit ID</th>
+                            <th>Posición Antes</th>
+                            <th>Posición Después</th>
+                            <th>Cambio</th>
+                            <th>Score CE</th>
+                            <th>Modelo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dec in decisions %}
+                        <tr>
+                            <td><code>{{ dec.hit_id }}</code></td>
+                            <td>{{ dec.rank_before }}</td>
+                            <td>{{ dec.rank_after }}</td>
+                            <td>
+                                {% if dec.rank_before > dec.rank_after %}
+                                <span class="rank-change rank-up">↑ {{ dec.rank_change }}</span>
+                                {% elif dec.rank_before < dec.rank_after %}
+                                <span class="rank-change rank-down">↓ {{ dec.rank_change }}</span>
+                                {% else %}
+                                <span class="rank-change rank-same">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ dec.score_ce|floatformat:3 }}</td>
+                            <td><code>{{ dec.model_version }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Botón de regreso -->
+    <div class="row">
+        <div class="col">
+            <a href="{% url 'ranking_dashboard:explainability_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a la lista
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Inicializar tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+})
+</script>
+{% endblock %}

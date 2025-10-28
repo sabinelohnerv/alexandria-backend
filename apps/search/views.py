@@ -22,6 +22,7 @@ from .services import ask as ask_service
 from .services.guards import check_query_guards, QueryGuardException
 from .throttles import BurstRateThrottle, SustainedRateThrottle
 from common.services.minio_storage import presign_get_url
+from apps.ranking_adaptive.models import RankingDecision
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,147 @@ class ChatMessageViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         if page is not None:
             return self.get_paginated_response(ser.data)
         return Response(ser.data, status=200)
+    
+    @action(detail=True, methods=["get"], url_path="explainability")
+    def explainability(self, request, session_pk=None, pk=None):
+        """
+        Obtiene la explicabilidad completa de un mensaje, incluyendo:
+        - Tiempos de cada fase (timings)
+        - Decisiones de ranking (rank_before vs rank_after)
+        - Señales utilizadas para cada hit
+        - Configuración de pesos activos
+        """
+        message = self.get_object()
+        u = request.user
+        
+        # Verificar permisos
+        if not (u.is_staff or u.is_superuser):
+            if message.session.user_id != u.id:
+                return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Obtener datos básicos del mensaje
+        answer_json = message.answer_json or {}
+        timings = answer_json.get("timings", {})
+        
+        # Obtener hits con sus metadatos
+        hits = (SearchHit.objects
+                .filter(message=message)
+                .select_related("document", "chunk")
+                .order_by("rank"))
+        
+        hits_data = []
+        for hit in hits:
+            meta = hit.meta_json or {}
+            hits_data.append({
+                "rank": hit.rank,
+                "document_id": hit.document_id,
+                "document_title": hit.document.title,
+                "chunk_id": hit.chunk_id,
+                "section": meta.get("section"),
+                "scores": {
+                    "vector": float(hit.score_vector or 0),
+                    "lexical": float(meta.get("lex", 0)),
+                    "base_rrf": float(meta.get("base_rrf", 0)),
+                    "rerank_ce": meta.get("rerank_ce"),
+                    "rerank_ce_raw": meta.get("rerank_ce_raw"),
+                    "final_score": float(meta.get("final_score", 0)),
+                },
+                "signals": meta.get("signals", {}),
+            })
+        
+        # Obtener decisiones de ranking si existen
+        try:
+            decisions = (RankingDecision.objects
+                        .filter(message_id=message.id)
+                        .order_by("shown_pos"))
+            
+            decisions_data = []
+            for dec in decisions:
+                decisions_data.append({
+                    "hit_id": dec.hit_id,
+                    "rank_before": dec.rank_before,
+                    "rank_after": dec.rank_after,
+                    "shown_pos": dec.shown_pos,
+                    "score_ce": float(dec.score_ce or 0),
+                    "signals": dec.signals,
+                    "signal_names": dec.signal_names,
+                    "model_version": dec.model_version,
+                })
+        except Exception:
+            decisions_data = []
+        
+        # Construir respuesta completa
+        response_data = {
+            "message_id": message.id,
+            "query": message.session.messages.filter(role=ChatMessage.ROLE_USER).last().text if message.session.messages.filter(role=ChatMessage.ROLE_USER).exists() else "",
+            "created_at": message.created_at,
+            "latency_ms": message.latency_ms,
+            
+            # Fases y tiempos
+            "phases": {
+                "setup": {
+                    "duration_ms": timings.get("setup_ms", 0),
+                    "description": "Creación de sesión y mensaje de usuario"
+                },
+                "embedding": {
+                    "duration_ms": timings.get("embedding_ms", 0),
+                    "description": "Generación del embedding de la consulta"
+                },
+                "search": {
+                    "duration_ms": timings.get("search_ms", 0),
+                    "description": "Búsqueda vectorial y léxica en paralelo"
+                },
+                "rrf_fusion": {
+                    "duration_ms": timings.get("rrf_fusion_ms", 0),
+                    "description": "Fusión RRF de resultados vectoriales y léxicos"
+                },
+                "retrieve_total": {
+                    "duration_ms": timings.get("retrieve_total_ms", 0),
+                    "description": "Tiempo total de recuperación"
+                },
+                "rerank": {
+                    "duration_ms": timings.get("rerank_ms", 0),
+                    "description": "Reranking con cross-encoder"
+                },
+                "signals_scoring": {
+                    "duration_ms": timings.get("signals_scoring_ms", 0),
+                    "description": "Cálculo de señales y scoring final"
+                },
+                "mmr": {
+                    "duration_ms": timings.get("mmr_ms", 0),
+                    "description": "Selección MMR para diversidad"
+                },
+                "llm_synthesis": {
+                    "duration_ms": timings.get("llm_synthesis_ms", 0),
+                    "description": "Generación de respuesta con LLM"
+                },
+                "persistence": {
+                    "duration_ms": timings.get("persistence_ms", 0),
+                    "description": "Persistencia en base de datos"
+                },
+                "total": {
+                    "duration_ms": timings.get("total_ms", message.latency_ms),
+                    "description": "Tiempo total de procesamiento"
+                }
+            },
+            
+            # Configuración utilizada
+            "configuration": {
+                "enable_rerank": answer_json.get("enable_rerank", True),
+                "weights": answer_json.get("weights", {}),
+                "org_weights": answer_json.get("org_weights", {}),
+                "weights_version_used": answer_json.get("weights_version_used", "active"),
+                "experiment_bucket": answer_json.get("experiment_bucket", "control"),
+                "rerank_score_mode": answer_json.get("rerank_score_mode", "sigmoid_minmax"),
+            },
+            
+            # Resultados
+            "hits": hits_data,
+            "ranking_decisions": decisions_data,
+            "total_hits": len(hits_data),
+        }
+        
+        return Response(response_data, status=200)
 
 class AskView(APIView):
 
