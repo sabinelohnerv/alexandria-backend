@@ -1,260 +1,135 @@
-# ALEXANDRIA (ASISTENTE DE INVESTIGACIÓN JURÍDICA) - BACKEND
 
-Proyecto base para estudio jurídico: **Django** local + **PostgreSQL** y **Redis** en **Docker**, gestión de **whitelist** (con rol `admin`/`user`), **registro con OTP por email**, **login JWT**, **recuperación de contraseña con OTP por email**, **ask**, **sessions**.
+# Alexandria — Backend & AI Retrieval Engine
 
-## 🚀 Características
-- **DBs en Docker**: `postgres:16-alpine`, `redis:7-alpine` (app Django corre local).
-- **Whitelist**: CRUD admin + rol (`admin`/`user`), soft-delete, filtros/búsqueda/orden.
-- **Registro en 2 pasos**: request OTP → confirm OTP (crea usuario con rol de whitelist).
-- **Antiflood & Throttling**: cooldown en reenvío OTP + rate limit por IP/email.
-- **Emails bonitos**: plantillas HTML + texto con branding (logo/color/CTA).
-- **Auth JWT**: login, refresh, endpoint `/me`, `role` in-claim.
+Backend API and AI-powered information retrieval system for **Alexandria**, a legal research assistant designed for the Bolivian legal context.
 
-## 📦 Requisitos
-- Python **3.10+**
-- Docker / Docker Compose
-- PostgreSQL y Redis **no** locales (los levanta Docker)
-- (Opcional) Make / GNU tools
+Alexandria was developed as a Computer Systems Engineering degree project for Sanjinés & Asociados. It helps legal professionals find relevant legislation and case law through natural-language queries, hybrid retrieval, and evidence-grounded AI responses.
 
-## 🧩 Instalación rápida
-```bash
-# 1) Clonar y entrar
-git clone <https://github.com/sabinelohnerv/alexandria-backend.git>.git
-cd <https://github.com/sabinelohnerv/alexandria-backend.git>
+## Tech Stack
 
-# 2) Crear venv e instalar
-python -m venv .venv
-# PowerShell:
-. .venv/Scripts/Activate.ps1
-# macOS/Linux:
-# source .venv/bin/activate
+| Area | Technologies |
+|---|---|
+| Language | Python |
+| Backend | Django, Django REST Framework |
+| Database | PostgreSQL, pgvector |
+| Cache & Tasks | Redis, Celery |
+| Authentication | JWT, Email OTP, RBAC |
+| AI / NLP | RAG, BGE-M3, BGE Reranker, Llama 3 |
+| Search | BM25 / Full-Text Search, Vector Similarity, RRF |
+| Infrastructure | Docker |
+| Testing | Django unit tests, Postman |
 
-pip install --upgrade pip
-pip install -r requirements.txt  
+## Core Features
 
-# 3) Levantar Postgres + Redis
-docker compose up -d
+### Authentication & Access Control
 
-# 4) Configurar variables
-cp .env.example .env  # edita según tu entorno
+- Controlled registration through a user whitelist
+- Email-based OTP verification
+- JWT authentication
+- Password recovery using email OTP
+- Role-based access control (`admin` / `user`)
+- Request throttling and access validation
 
-# 5) Migraciones + admin
-python manage.py migrate
-python manage.py createsuperuser
+### AI-Powered Legal Research
 
-# 6) Correr servidor
-python manage.py runserver
+Alexandria implements a Retrieval-Augmented Generation (RAG) pipeline designed to retrieve and prioritize relevant Bolivian legal documents before generating responses.
+
+**Retrieval pipeline:**
+
+1. Collect publicly available legal documents.
+2. Extract, normalize, and segment document content.
+3. Generate semantic embeddings using BGE-M3.
+4. Store document metadata and vectors in PostgreSQL with pgvector.
+5. Retrieve candidates through BM25 and vector similarity search.
+6. Combine retrieval signals using Reciprocal Rank Fusion (RRF).
+7. Re-rank candidates using a cross-encoder and legal relevance signals.
+8. Generate evidence-grounded responses using Llama 3.
+9. Return supporting citations and document references.
+
+### Document Processing
+
+- Legal document ingestion through web scraping
+- Text extraction and normalization
+- Document chunking and metadata preservation
+- Lexical and semantic indexing
+- Background processing with Celery
+- Source traceability for retrieved documents
+
+### Search & Session Management
+
+- Natural-language legal queries
+- Query history and session management
+- Retrieved document references
+- Integrated document access
+- Relevance feedback on search results
+
+### Feedback & Ranking Improvement
+
+The system incorporates feedback from legal professionals to evaluate and refine retrieval quality.
+
+- Feedback collection at result level
+- Ranking decision tracking
+- Training of updated ranking weights
+- Version evaluation and controlled promotion
+- Retrieval quality and latency monitoring
+
+## Architecture
+
+The backend follows a layered architecture:
+
+```text
+React Client
+     |
+     v
+Django REST Framework
+     |
+     v
+Application / Business Logic
+     |
+     +-- Authentication & Authorization
+     +-- Search & RAG Pipeline
+     +-- Session Management
+     +-- Feedback & Ranking
+     |
+     v
+Infrastructure
+     |
+     +-- PostgreSQL + pgvector
+     +-- Redis
+     +-- Celery Workers
+     +-- Document Storage
+     +-- Embedding / Reranking Models
+     +-- Language Model
 ```
 
-Accede a:
-- App: http://127.0.0.1:8000/
-- Admin: http://127.0.0.1:8000/admin/
+The separation between API delivery, application logic, and infrastructure helps keep the system modular and maintainable.
 
-## 🔧 Variables de entorno (`.env` ejemplo)
-```env
-# Django
-DEBUG=True
-SECRET_KEY=dev-secret-change-me
-ALLOWED_HOSTS=127.0.0.1,localhost
-TIME_ZONE=America/La_Paz
+## Evaluation & Results
 
-# Postgres (Docker)
-POSTGRES_DB=appdb
-POSTGRES_USER=appuser
-POSTGRES_PASSWORD=app_password
-POSTGRES_HOST=127.0.0.1
-POSTGRES_PORT=5432      # usa 5433 si cambiaste el mapeo del puerto
+The system was evaluated through functional tests, technical tests, and user testing with legal professionals.
 
-# Redis (Docker)
-REDIS_URL=redis://127.0.0.1:6379/1
+Results demonstrated:
 
-# Email
-EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
-DEFAULT_FROM_EMAIL=no-reply@sanjines.com
-# Si usas SMTP real:
-# EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-# EMAIL_HOST=smtp.tu_proveedor.com
-# EMAIL_PORT=587
-# EMAIL_HOST_USER=tu_usuario
-# EMAIL_HOST_PASSWORD=tu_password
-# EMAIL_USE_TLS=True
+- Identification of useful legal documents within seconds
+- Reduction of document collection time from over an hour to minutes
+- Fewer manual search iterations and document openings
+- Improved access to supporting legal sources
+- Positive feedback on usability and research workflow integration
 
-# Branding (emails)
-BRAND_NAME=Sanjinés & Asociados
-BRAND_PRIMARY_COLOR=#1E88E5
-BRAND_LOGO_URL=
-FRONTEND_URL=http://localhost:3000
-```
+## Development
 
-## 🗂️ Estructura sugerida
-```
-.
-├─ config/                    # settings/urls/wsgi/asgi
-├─ common/
-│  └─ services/
-│     └─ minio_storage.py     # presign_get_url (MinIO/S3)
-├─ documents/                 # Document, Chunk, etc.
-├─ search/                    # ChatSession, ChatMessage, SearchHit, Feedback
-├─ staff_whitelist/           # whitelist (roles y acceso)
-├─ accounts_signup/           # registro OTP
-├─ accounts_auth/             # login JWT
-├─ accounts_password/         # reset por OTP
-├─ templates/emails/          # base_email.html + plantillas
-├─ docker-compose.yml
-├─ requirements.txt
-├─ .env.example
-└─ README.md
-```
----
-## 🔎 API de Búsqueda & Chats (Alexandria)
+The project uses Docker-based infrastructure with PostgreSQL and Redis.
 
-Todas las rutas requieren **JWT** en `Authorization: Bearer <token>`. La paginación estándar de DRF aplica donde se indique (`?page=1`).
+Refer to the repository's configuration files for the exact environment variables, services, migrations, and startup commands required for local development.
 
-### 1) Sesiones de chat
-```
-GET    /api/sessions/                     # lista mis sesiones (con soft-deleted opcional)
-POST   /api/sessions/                     # crea sesión (title opcional)
-GET    /api/sessions/{id}/                # detalle
-PATCH  /api/sessions/{id}/                # renombrar (title)
-DELETE /api/sessions/{id}/                # soft delete
-POST   /api/sessions/{id}/restore/        # restaurar soft delete
-```
+## Project Context
 
-**Query params útiles**
-- `include_deleted=1` (incluir soft-deleted)
-- `all=1` (solo staff/superuser para ver de todos)
+Alexandria was developed in 2025 as an applied research and software engineering project at Universidad Privada del Valle (Univalle), Bolivia.
 
-**Ejemplo**
-```bash
-curl -H "Authorization: Bearer $JWT" http://localhost:8000/api/sessions/
-```
+**Author:** Sabine Lohner Villarroel
 
----
+**Focus:** Backend Engineering, Information Retrieval, Applied Machine Learning, Natural Language Processing, and LegalTech.
 
-### 2) Mensajes de una sesión
-```
-GET /api/sessions/{session_id}/messages/
-```
-Devuelve cada mensaje anotado con feedback agregado:
-- `useful_count`, `not_useful_count`
-- `my_feedback_label` ∈ { "useful", "not_useful", null }
+## Disclaimer
 
-**Ejemplo**
-```bash
-curl -H "Authorization: Bearer $JWT" \
-  http://localhost:8000/api/sessions/123/messages/
-```
-
-**Respuesta (parcial)**
-```json
-{
-  "id": 981,
-  "role": "assistant",
-  "text": "Respuesta...",
-  "useful_count": 3,
-  "not_useful_count": 1,
-  "my_feedback_label": "useful"
-}
-```
-
----
-
-### 3) Preguntar (ASK)
-```
-POST /api/ask/
-```
-**Body**
-```json
-{ "query": "¿Doctrina sobre cosa juzgada constitucional?", "session_id": 123 }
-```
-Si no envías `session_id`, se crea una nueva sesión y se responde ahí.
-
-**Respuesta (parcial)**
-```json
-{
-  "message": { "id": 981, "role":"assistant", "text":"..." },
-  "hits": [ { "id":101, "rank":1, "document_id":55, "chunk_id":4421 } ]
-}
-```
-
----
-
-### 4) Feedback por **mensaje**
-```
-POST   /api/feedback/                     # crear/actualizar voto (idempotente)
-DELETE /api/feedback?message_id={id}      # quitar voto (unvote)
-```
-**Body (POST)**
-```json
-{ "message": 981, "label": "useful", "comment": "" }
-```
-`label` ∈ { `useful`, `not_useful` }.
-
----
-
-### 5) Hits de un mensaje (con metadatos legibles)
-```
-GET /api/sessions/{session_id}/messages/{message_id}/hits/
-```
-**Query params**
-- `include_snippet=1` → añade `snippet` (extracto del chunk)
-- `limit=N` (si no usas paginación DRF)
-
-**Respuesta (parcial)**
-```json
-{
-  "id": 101,
-  "rank": 1,
-  "score_vector": 0.82,
-  "score_lexical": 7.2,
-  "score_rerank": 0.91,
-  "document": {
-    "id": 55, "title": "SCP 0123/2023", "authority": "TCP",
-    "doc_type": "sentencia", "number": "0123/2023",
-    "year": "2023", "published_date": "2023-09-18", "state": "vigente"
-  },
-  "chunk": { "id": 4421, "ordinal": 12, "section": "Fundamentos jurídicos", "token_count": 182 },
-  "snippet": "Considerando III: La jurisprudencia..."
-}
-```
-
----
-
-### 6) Archivo del documento asociado a un hit (MinIO / presigned URL)
-```
-GET /api/sessions/{session_id}/messages/{message_id}/hits/{hit_id}/file/
-```
-**Respuesta:** `302 Found` con cabecera **`Location`** apuntando al presigned URL (válido por pocos minutos).  
-Úsalo directo en `<iframe src=".../file/">` o `window.open()`; MinIO sirve `Range` para visor PDF.
-
-**Ejemplo**
-```bash
-curl -i -H "Authorization: Bearer $JWT" \
-  http://localhost:8000/api/sessions/123/messages/981/hits/7/file/
-# HTTP/1.1 302 Found
-# Location: https://minio.local/alexandria/...X-Amz-Signature=...
-```
-
----
-
-## 🧪 Postman
-Se incluye colecciones de Postman para probar todos los endpoints (Whitelist, Registro, Auth).Importa en Postman (ajusta `base_url`, `admin_email`, etc.) y prueba.
-
-## 📨 Emails con plantillas
-- HTML + texto (multipart) con `EmailMultiAlternatives`.
-
-## ⛑️ Troubleshooting
-- **`environ could not be resolved`** → activa el *venv* en VS Code y `pip install django-environ`.  Selecciona el intérprete: *Python: Select Interpreter* → `.venv`.
-- **`connection refused` a Postgres/Redis** → `docker compose ps` y revisa `docker compose logs <servicio>`.
-- **Puerto 5432 ocupado** → cambia mapeo `5433:5432` y ajusta `POSTGRES_PORT=5433`.
-- **Email no llega** (en dev de consola solo imprime) → cambia a SMTP real o revisa logs.
-- **302 MinIO pero no abre** → revisa que el navegador permita popups y que el presigned URL no haya expirado (expira en `MINIO_PRESIGN_EXPIRES`).
-
----
-
-## 📜 Licencia
-MIT License
-
----
-
-> Última actualización: 2025-10-07
+Alexandria is a legal research support tool. AI-generated responses must be verified against their cited legal sources and do not constitute legal advice.
