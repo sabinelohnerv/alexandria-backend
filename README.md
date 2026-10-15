@@ -73,36 +73,36 @@ The system incorporates feedback from legal professionals to evaluate and refine
 - Version evaluation and controlled promotion
 - Retrieval quality and latency monitoring
 
-## Architecture
 
-The backend follows a layered architecture:
+## System Architecture
 
-```text
-React Client
-     |
-     v
-Django REST Framework
-     |
-     v
-Application / Business Logic
-     |
-     +-- Authentication & Authorization
-     +-- Search & RAG Pipeline
-     +-- Session Management
-     +-- Feedback & Ranking
-     |
-     v
-Infrastructure
-     |
-     +-- PostgreSQL + pgvector
-     +-- Redis
-     +-- Celery Workers
-     +-- Document Storage
-     +-- Embedding / Reranking Models
-     +-- Language Model
-```
+### Retrieval-Augmented Generation (RAG) Pipeline
 
-The separation between API delivery, application logic, and infrastructure helps keep the system modular and maintainable.
+Alexandria implements a Retrieval-Augmented Generation (RAG) architecture designed to provide accurate, context-aware legal research grounded in Bolivian legislation and case law.
+
+The architecture integrates document ingestion, hybrid information retrieval, semantic re-ranking, and LLM-based response generation into a unified pipeline.
+
+<p align="center">
+  <img src="screenshots/arquitectura.png"
+       alt="Alexandria RAG architecture and information retrieval pipeline"
+       width="950">
+</p>
+
+### Architecture Overview
+
+The system consists of five main components:
+
+1. **Data Ingestion & Processing:** Legal documents are collected from official Bolivian judicial sources, normalized, segmented into chunks, and indexed for retrieval.
+
+2. **Hybrid Search:** Combines lexical retrieval (BM25 / Full-Text Search) with semantic vector search using embeddings stored in PostgreSQL with pgvector.
+
+3. **Re-ranking:** Retrieved candidates are merged and prioritized using Reciprocal Rank Fusion (RRF) and a cross-encoder re-ranking model to improve contextual relevance.
+
+4. **Response Generation:** The most relevant passages are supplied as context to a Llama-based language model, generating responses supported by citations to the original legal documents.
+
+5. **Feedback & Continuous Improvement:** User relevance feedback is collected to evaluate retrieval quality, refine ranking weights, and support controlled model version updates.
+
+This architecture separates data preparation, retrieval, ranking, and generation, enabling individual components to be evaluated and improved independently.
 
 ## Evaluation & Results
 
